@@ -3,7 +3,7 @@
 Two Android apps, written in plain Java on the Android framework only (no AndroidX or other
 libraries). Each folder is an Android Studio project and also includes the APK built from it.
 
-## Portfolio (`Portfolio/`, package `com.uliptracker`, v3.0)
+## Portfolio (`Portfolio/`, package `com.uliptracker`, v8.1)
 
 | File | What it does |
 |---|---|
