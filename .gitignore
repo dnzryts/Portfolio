@@ -1,0 +1,12 @@
+# Private signing keys: never commit. Keep a private backup; you need them to update the installed apps.
+signing/
+*.key
+*.jks
+*.keystore
+# Build outputs
+*.apk
+build/
+.gradle/
+local.properties
+*.iml
+.idea/

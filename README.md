@@ -1,0 +1,57 @@
+# Source code: Portfolio and Dial Clock
+
+Two Android apps, written in plain Java on the Android framework only (no AndroidX or other
+libraries). Each folder is an Android Studio project and also includes the APK built from it.
+
+## Portfolio (`Portfolio/`, package `com.uliptracker`, v3.0)
+
+| File | What it does |
+|---|---|
+| `MainActivity.java` | All screens: bottom menu (Dashboard, Portfolio, Indexes, More), holding detail, add/search flows, ULIP paste, settings, backup |
+| `Store.java` | Data model (stocks, mutual funds, ULIP funds, indexes, other assets, loans, family owners, policies, platforms) saved as JSON in app storage; maths for value, P&L, history |
+| `Net.java` | Price sources: mfapi.in for mutual funds, Yahoo Finance chart/search for NSE/BSE stocks, ETFs and indexes |
+| `Updater.java` | Refreshes prices (fetches each symbol once even when held on several platforms) |
+| `Alerts.java`, `AlertJob.java` | Move alerts, one-shot price targets, daily closing summary, and the periodic background check (JobScheduler) |
+| `Pdf.java` | PDF text extractor: xref tables/streams, object streams, RC4/AES-128/AES-256 decryption, fonts with ToUnicode |
+| `Cas.java` | Reads CAMS/KFintech CAS text into funds, units, cost and transactions; name/ISIN matching helpers |
+| `Tabular.java` | CSV/XLSX reader for broker holdings, MF holdings and tradebooks/order history |
+| `Ledger.java` | Transactions (buy/sell/dividend), FIFO cost basis, automatic SIP instalments, XIRR solver |
+| `Backup.java` | Password-encrypted (PBKDF2 + AES-GCM) automatic backups to a chosen folder |
+| `CardStack.java` | Wallet-style stack of summary cards on the Dashboard (swipe up/down) |
+| `IntroView.java` | Animated launch logo |
+| `Widget.java` | Home-screen widget (value, today's change, 1-month chart), drawn as an image |
+| `Lock.java` | Fingerprint / PIN lock with the system BiometricPrompt |
+| `Parser.java` | Reads pasted SBI Life NAV tables |
+| `ChartView.java`, `DonutView.java`, `NavIcon.java`, `Ui.java` | Charts, donut, bottom-bar icons, colours, animations |
+
+## Dial Clock (`DialClock/`, package `com.dialclock`)
+
+`ClockView` draws the rotating-dial clock. `ClockWallpaper` is the live wallpaper,
+`ClockDream` is the screensaver, and `MainActivity` is the full-screen clock with the
+"Set as wallpaper" button.
+
+## Building
+
+**Android Studio (easiest):** File › Open, choose the `Portfolio` or `DialClock` folder, let
+Gradle sync, then Build › Build APK(s). It needs Android SDK 34.
+
+**What I used here (no Android SDK):** each project's `tools/pack.py` writes the binary
+manifest, resource table and APK v2 signature in Python. The steps are:
+
+```bash
+javac --release 8 -cp android.jar -d build/classes app/src/main/java/com/uliptracker/*.java
+(cd build/classes && jar cf ../classes.jar com)
+java -cp dx.jar com.android.dx.command.Main --dex --min-sdk-version=26 --output=build/classes.dex build/classes.jar
+python3 tools/pack.py build/classes.dex Portfolio.apk   # needs Pillow + cryptography
+```
+
+`pack.py` expects the shared helper from Dial Clock's `tools/pack.py` (it imports it as `pack`).
+Copy that file next to it, or change the `sys.path` line at the top.
+
+## Signing key (keep private)
+
+`signing/` holds the private key the installed APKs were signed with. You need it to install
+updates over the apps already on your phone. Apps built in Android Studio use its own debug key,
+so you'll have to uninstall the old app first, which deletes its data. **Make a backup first**
+(More › Share backup).
+Don't share this key with anyone or upload it publicly.

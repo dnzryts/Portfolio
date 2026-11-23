@@ -1,0 +1,13 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'com.uliptracker'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'com.uliptracker'
+        minSdk 26
+        targetSdk 34
+        versionCode 19
+        versionName '8.0'
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
+}
