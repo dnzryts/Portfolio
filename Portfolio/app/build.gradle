@@ -6,8 +6,8 @@ android {
         applicationId 'com.uliptracker'
         minSdk 26
         targetSdk 34
-        versionCode 20
-        versionName '8.1'
+        versionCode 21
+        versionName '8.2'
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
 }

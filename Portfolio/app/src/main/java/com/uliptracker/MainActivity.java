@@ -80,6 +80,7 @@ public class MainActivity extends Activity {
     private String refreshStatus;
     private ScrollView scroller;
     private SwipeFrame content;
+    private PullRefresh pull;
     private boolean programmaticSlide;   // slide started by a tap/back, state already updated
     private boolean sliding;
     private final NavIcon[] navIcons = new NavIcon[5];
@@ -138,7 +139,18 @@ public class MainActivity extends Activity {
                 updateNav();
             }
         });
-        root.addView(content, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
+        pull = new PullRefresh(this);
+        pull.setContent(content);
+        pull.setListener(new PullRefresh.Listener() {
+            @Override public boolean canPull(float x, float y) {
+                if (locked || hiddenForRecents || refreshing || scroller == null) return false;
+                if (tab == TABS.length - 1 && screen == 0) return false;      // More: nothing to refresh
+                if (scroller.getScrollY() > 0 || scroller.getParent() == null) return false;
+                return !onCardStack(content, x, y);                          // the card stack has its own swipe down
+            }
+            @Override public void onRefresh() { refresh(null, false); }
+        });
+        root.addView(pull, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
         navBar = buildNavBar();
         root.addView(navBar);
         FrameLayout shell = new FrameLayout(this);
@@ -2775,11 +2787,13 @@ public class MainActivity extends Activity {
         if (refreshing) return;
         final List<Store.Asset> todo = Updater.online(store, only);
         if (todo.isEmpty()) {
+            if (pull != null) pull.stop();
             if (!silent && only == null) toast("Nothing to update online. ULIP NAVs are pasted.");
             render(true);
             return;
         }
         refreshing = true;
+        if (!silent && only == null && pull != null) pull.start();
         refreshStatus = "Updating " + todo.size() + " prices…";
         render(false);
         final java.util.Map<String, String[]> symbols = Updater.symbols(todo);
@@ -2795,6 +2809,7 @@ public class MainActivity extends Activity {
                     @Override public void run() {
                         refreshing = false;
                         refreshStatus = null;
+                        if (pull != null) pull.stop();
                         if (owner != store || isFinishing()) return;   // data was reloaded meanwhile
                         int[] r = Updater.apply(store, todo, results);
                         try { Alerts.check(MainActivity.this, store); } catch (Throwable t) { Crash.save(MainActivity.this, t); }
@@ -5343,5 +5358,21 @@ public class MainActivity extends Activity {
                         render(false);
                     }
                 }).setNegativeButton("Cancel", null).show();
+    }
+
+
+    /** True if (x, y) in `g`'s coordinates lands on the dashboard card stack. */
+    private static boolean onCardStack(ViewGroup g, float x, float y) {
+        for (int i = g.getChildCount() - 1; i >= 0; i--) {
+            View c = g.getChildAt(i);
+            if (c.getVisibility() != View.VISIBLE) continue;
+            float cx = x + g.getScrollX() - c.getLeft() - c.getTranslationX();
+            float cy = y + g.getScrollY() - c.getTop() - c.getTranslationY();
+            if (cx < 0 || cy < 0 || cx >= c.getWidth() || cy >= c.getHeight()) continue;
+            if (c instanceof CardStack) return true;
+            if (c instanceof ViewGroup) return onCardStack((ViewGroup) c, cx, cy);
+            return false;
+        }
+        return false;
     }
 }
