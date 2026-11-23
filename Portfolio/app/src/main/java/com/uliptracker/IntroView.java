@@ -22,6 +22,9 @@ public class IntroView extends View {
     private final RectF r = new RectF();
     private float t;    // 0..1 over the whole animation
     private final float dp;
+    private boolean still;          // just the finished logo, sized to the view (for headers and the welcome screen)
+    private String greeting;        // e.g. "Welcome back, Asha"
+    private final Paint sub = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     public IntroView(Context c) {
         super(c);
@@ -37,12 +40,26 @@ public class IntroView extends View {
         title.setTextAlign(Paint.Align.CENTER);
         title.setTextSize(20 * dp);
         title.setFakeBoldText(true);
+        sub.setColor(Ui.SUB);
+        sub.setTextAlign(Paint.Align.CENTER);
+        sub.setTextSize(15 * dp);
         setClickable(true);   // swallow touches while showing
     }
 
+    /** A static logo: no background, no title. */
+    public static IntroView logo(Context c) {
+        IntroView v = new IntroView(c);
+        v.still = true;
+        v.t = 0.77f;
+        v.setClickable(false);
+        return v;
+    }
+
+    public void setGreeting(String g) { greeting = g; }
+
     public void play(final ViewGroup parent) {
         ValueAnimator a = ValueAnimator.ofFloat(0f, 1f);
-        a.setDuration(1250);
+        a.setDuration(greeting != null ? 1900 : 1250);
         a.setInterpolator(new LinearInterpolator());
         a.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override public void onAnimationUpdate(ValueAnimator v) { t = (Float) v.getAnimatedValue(); invalidate(); }
@@ -60,12 +77,15 @@ public class IntroView extends View {
     @Override
     protected void onDraw(Canvas c) {
         float w = getWidth(), h = getHeight();
-        float out = ease(seg(t, 0.78f, 1f));          // exit
-        bg.setColor(Ui.BG);
-        bg.setAlpha((int) (255 * (1 - out)));
-        c.drawRect(0, 0, w, h, bg);
-        float s = Math.min(w, h) * 0.30f * (1 + out * 0.6f);
-        float cx = w / 2, cy = h / 2 - 20 * dp;
+        float exitAt = greeting != null ? 0.84f : 0.78f;
+        float out = still ? 0 : ease(seg(t, exitAt, 1f));          // exit
+        if (!still) {
+            bg.setColor(Ui.BG);
+            bg.setAlpha((int) (255 * (1 - out)));
+            c.drawRect(0, 0, w, h, bg);
+        }
+        float s = still ? Math.min(w, h) * 0.5f : Math.min(w, h) * 0.30f * (1 + out * 0.6f);
+        float cx = w / 2, cy = still ? h / 2 : h / 2 - 20 * dp;
         int alpha = (int) (255 * (1 - out));
         // badge background
         float pop = ease(seg(t, 0f, 0.25f));
@@ -104,17 +124,23 @@ public class IntroView extends View {
         line.setAlpha(alpha);
         if (lp > 0) c.drawPath(p, line);
         // end dot pop
-        float dpop = seg(t, 0.66f, 0.78f);
+        float dpop = still ? 1 : seg(t, 0.66f, 0.78f);
         if (dpop > 0) {
             float k = dpop < 0.6f ? dpop / 0.6f * 1.35f : 1.35f - (dpop - 0.6f) / 0.4f * 0.35f;
             dot.setAlpha(alpha);
             c.drawCircle(ex, ey, s * 0.10f * k, dot);
         }
+        if (still) return;
         // name
         float tt = ease(seg(t, 0.45f, 0.75f));
         title.setAlpha((int) (alpha * tt));
         title.setColor(Ui.TEXT);
         title.setAlpha((int) (alpha * tt));
         c.drawText("Portfolio", cx, cy + s * 1.25f + (1 - tt) * 12 * dp, title);
+        if (greeting != null) {
+            float gt = ease(seg(t, 0.6f, 0.8f));
+            sub.setAlpha((int) (alpha * gt));
+            c.drawText(greeting, cx, cy + s * 1.25f + 30 * dp + (1 - gt) * 10 * dp, sub);
+        }
     }
 }

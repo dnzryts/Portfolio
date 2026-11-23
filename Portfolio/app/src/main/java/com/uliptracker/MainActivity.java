@@ -144,8 +144,10 @@ public class MainActivity extends Activity {
         FrameLayout shell = new FrameLayout(this);
         shell.addView(root);
         setContentView(shell);
+        if (b == null && !Alerts.prefs(this).getBoolean("name_asked", false)) welcome(shell);
         if (b == null && Alerts.prefs(this).getBoolean("intro", true)) {
             IntroView iv = new IntroView(this);
+            if (!userName().isEmpty()) iv.setGreeting("Welcome back, " + userName());
             shell.addView(iv, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             iv.play(shell);
         }
@@ -621,6 +623,8 @@ public class MainActivity extends Activity {
         LinearLayout col = page(!animate);
         int idx = 0;
         List<Store.Asset> scope = store.visible(-1);
+        View gr = greetingRow();
+        if (gr != null) add(col, gr, idx++, animate);
         add(col, header("Dashboard", true, true, addAction), idx++, animate);
         col.addView(Ui.space(this, 14));
         View oc = ownerChips();
@@ -1072,6 +1076,22 @@ public class MainActivity extends Activity {
         int idx = 0;
         add(col, header("More", false, false, null), idx++, animate);
         col.addView(Ui.space(this, 14));
+        LinearLayout prof = Ui.card(this);
+        LinearLayout pr = Ui.row(this);
+        IntroView pl = IntroView.logo(this);
+        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams((int) (46 * dp), (int) (46 * dp));
+        plp.setMargins(0, 0, (int) (14 * dp), 0);
+        pr.addView(pl, plp);
+        LinearLayout pt = new LinearLayout(this);
+        pt.setOrientation(LinearLayout.VERTICAL);
+        pt.addView(Ui.text(this, userName().isEmpty() ? "Add your name" : userName(), 17, Ui.TEXT, true));
+        pt.addView(Ui.text(this, userName().isEmpty() ? "For a personal greeting" : "Tap to change your name", 12, Ui.SUB, false));
+        pr.addView(pt, Ui.weight(1));
+        pr.addView(Ui.text(this, "✎", 18, Ui.ACCENT, true));
+        prof.addView(pr);
+        prof.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { nameDialog(); } });
+        add(col, prof, idx++, animate);
+        col.addView(Ui.space(this, 4));
         add(col, Ui.text(this, "Privacy", 13, Ui.SUB, true), idx++, animate);
         col.addView(Ui.space(this, 6));
         LinearLayout pc = Ui.card(this);
@@ -5208,5 +5228,120 @@ public class MainActivity extends Activity {
             @Override public int compare(Sug x, Sug y) { return Integer.compare(x.pri, y.pri); }
         });
         return out;
+    }
+
+
+    // ================================================================== name & welcome
+    private String userName() { return Alerts.prefs(this).getString("user_name", "").trim(); }
+
+    private String partOfDay() {
+        int h = java.time.LocalTime.now().getHour();
+        return h < 5 ? "Good evening" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+    }
+
+    /** Small logo with "Good morning, Asha" above the dashboard title. */
+    private View greetingRow() {
+        if (userName().isEmpty()) return null;
+        LinearLayout r = Ui.row(this);
+        r.setPadding(0, 0, 0, (int) (6 * dp));
+        IntroView logo = IntroView.logo(this);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) (30 * dp), (int) (30 * dp));
+        lp.setMargins(0, 0, (int) (10 * dp), 0);
+        r.addView(logo, lp);
+        TextView t = Ui.text(this, partOfDay() + ", " + userName() + " 👋", 15, Ui.TEXT, true);
+        t.setSingleLine(true);
+        t.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        r.addView(t, Ui.weight(1));
+        r.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { nameDialog(); } });
+        return r;
+    }
+
+    /** First-run screen: logo, welcome message and an optional name. */
+    private void welcome(final FrameLayout shell) {
+        final ScrollView sv = new ScrollView(this);
+        sv.setFillViewport(true);
+        sv.setBackgroundColor(Ui.BG);
+        sv.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        sv.setClickable(true);
+        LinearLayout c = new LinearLayout(this);
+        c.setOrientation(LinearLayout.VERTICAL);
+        c.setGravity(Gravity.CENTER_HORIZONTAL | Gravity.CENTER_VERTICAL);
+        c.setPadding((int) (28 * dp), (int) (40 * dp), (int) (28 * dp), (int) (40 * dp));
+        sv.addView(c, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        IntroView logo = IntroView.logo(this);
+        c.addView(logo, new LinearLayout.LayoutParams((int) (112 * dp), (int) (112 * dp)));
+        c.addView(Ui.space(this, 22));
+        TextView h = Ui.text(this, "Welcome to Portfolio", 26, Ui.TEXT, true);
+        h.setGravity(Gravity.CENTER);
+        c.addView(h);
+        c.addView(Ui.space(this, 8));
+        TextView sub = Ui.text(this, "Stocks, mutual funds, SBI Life ULIPs, deposits and everything else you own, in one place. "
+                + "Your data stays on this phone.", 14, Ui.SUB, false);
+        sub.setGravity(Gravity.CENTER);
+        sub.setLineSpacing(3 * dp, 1);
+        c.addView(sub);
+        c.addView(Ui.space(this, 28));
+        TextView q = Ui.text(this, "What should we call you?", 14, Ui.TEXT, true);
+        c.addView(q, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        final EditText name = new EditText(this);
+        name.setHint("Your name");
+        name.setSingleLine(true);
+        name.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS | InputType.TYPE_TEXT_VARIATION_PERSON_NAME);
+        name.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
+        name.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(30)});
+        name.setText(userName());
+        c.addView(name, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        c.addView(Ui.space(this, 20));
+        TextView go = Ui.button(this, "Get started", true);
+        c.addView(go, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        c.addView(Ui.space(this, 6));
+        TextView skip = Ui.text(this, "Skip for now", 14, Ui.SUB, false);
+        skip.setGravity(Gravity.CENTER);
+        skip.setPadding(0, (int) (10 * dp), 0, (int) (10 * dp));
+        c.addView(skip, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        final Runnable done = new Runnable() {
+            @Override public void run() {
+                String n = name.getText().toString().trim().replaceAll("\\s+", " ");
+                Alerts.prefs(MainActivity.this).edit().putBoolean("name_asked", true).putString("user_name", n).apply();
+                android.view.inputmethod.InputMethodManager im = (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (im != null) im.hideSoftInputFromWindow(name.getWindowToken(), 0);
+                if (!n.isEmpty()) toast("Welcome, " + n + "!");
+                sv.animate().alpha(0f).translationY(-30 * dp).setDuration(280).withEndAction(new Runnable() {
+                    @Override public void run() { shell.removeView(sv); }
+                }).start();
+                if (tab == 0 && screen == 0) render(false);
+            }
+        };
+        go.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { done.run(); } });
+        skip.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { name.setText(""); done.run(); } });
+        name.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override public boolean onEditorAction(TextView v, int a, android.view.KeyEvent e) { done.run(); return true; }
+        });
+        shell.addView(sv, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        logo.setScaleX(0.6f); logo.setScaleY(0.6f); logo.setAlpha(0f);
+        logo.animate().scaleX(1f).scaleY(1f).alpha(1f).setStartDelay(1300).setDuration(500)
+                .setInterpolator(new android.view.animation.OvershootInterpolator(1.4f)).start();
+    }
+
+    private void nameDialog() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        final EditText name = new EditText(this);
+        name.setHint("Your name");
+        name.setSingleLine(true);
+        name.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS | InputType.TYPE_TEXT_VARIATION_PERSON_NAME);
+        name.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(30)});
+        name.setText(userName());
+        name.setSelectAllOnFocus(true);
+        box.addView(name);
+        box.addView(Ui.text(this, "Shown in the greeting on the Dashboard and when the app opens.", 11, Ui.HINT, false));
+        dialog().setTitle("Your name").setView(padded(box))
+                .setPositiveButton("Save", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int w) {
+                        Alerts.prefs(MainActivity.this).edit().putBoolean("name_asked", true)
+                                .putString("user_name", name.getText().toString().trim().replaceAll("\\s+", " ")).apply();
+                        render(false);
+                    }
+                }).setNegativeButton("Cancel", null).show();
     }
 }
