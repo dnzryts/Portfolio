@@ -138,6 +138,9 @@ public class Store {
 
         public boolean held() { return units > 0 && latest() != null; }
 
+        /** Trading currency of a quoted stock/ETF/index from the exchange ("" for funds and manual assets). */
+        public String currency = "";
+
         public String ownerOrDefault() { return owner == null || owner.trim().isEmpty() ? "Me" : owner.trim(); }
 
         public boolean manual() { return type == OTHER || type == LOAN; }
@@ -218,7 +221,48 @@ public class Store {
     /** Family member being viewed (null = everyone). */
     public String ownerFilter;
 
-    private boolean ownerOk(Asset a) { return ownerFilter == null || a.ownerOrDefault().equalsIgnoreCase(ownerFilter); }
+    // ---- currency per profile (no conversion: each profile's money stays in its own currency) ----
+    /** Profile (owner, lower case) → ISO currency code. Missing = INR. */
+    public final Map<String, String> ownerCcy = new java.util.HashMap<>();
+    private Boolean mixedCache;
+
+    public String ccyOf(String owner) {
+        String c = ownerCcy.get((owner == null || owner.trim().isEmpty() ? "Me" : owner.trim()).toLowerCase(java.util.Locale.ROOT));
+        return c == null || c.isEmpty() ? "INR" : c;
+    }
+
+    public void setCcy(String owner, String code) {
+        String k = (owner == null || owner.trim().isEmpty() ? "Me" : owner.trim()).toLowerCase(java.util.Locale.ROOT);
+        if (code == null || "INR".equals(code)) ownerCcy.remove(k); else ownerCcy.put(k, code);
+        mixedCache = null;
+    }
+
+    /** Currencies in use, the default ("Me") first. */
+    public List<String> currencies() {
+        List<String> out = new ArrayList<>();
+        out.add(ccyOf("Me"));
+        for (String o : owners()) { String c = ccyOf(o); if (!out.contains(c)) out.add(c); }
+        return out;
+    }
+
+    /** True when profiles use more than one currency, so "Everyone" splits by currency. */
+    public boolean mixed() {
+        if (mixedCache == null) mixedCache = currencies().size() > 1;
+        return mixedCache;
+    }
+
+    /** The currency of what's on screen: a person's, a currency group's ("@SGD"), or everyone's (Me's when mixed). */
+    public String viewCcy() {
+        if (ownerFilter == null) return ccyOf("Me");
+        if (ownerFilter.startsWith("@")) return ownerFilter.substring(1);
+        return ccyOf(ownerFilter);
+    }
+
+    private boolean ownerOk(Asset a) {
+        if (ownerFilter == null) return !mixed() || ccyOf(a.ownerOrDefault()).equals(ccyOf("Me"));
+        if (ownerFilter.startsWith("@")) return ccyOf(a.ownerOrDefault()).equals(ownerFilter.substring(1));
+        return a.ownerOrDefault().equalsIgnoreCase(ownerFilter);
+    }
 
     public List<String> owners() {
         List<String> out = new ArrayList<>();
@@ -325,6 +369,7 @@ public class Store {
     }
 
     public synchronized void save() {
+        mixedCache = null;      // owners may have changed
         VERSION++;
         try {
             File tmp = new File(file.getPath() + ".tmp");
@@ -340,6 +385,11 @@ public class Store {
         try {
             JSONObject o = new JSONObject();
             o.put("version", 2);
+            if (!ownerCcy.isEmpty()) {
+                JSONObject oc = new JSONObject();
+                for (Map.Entry<String, String> e : ownerCcy.entrySet()) oc.put(e.getKey(), e.getValue());
+                o.put("ownerCcy", oc);
+            }
             o.put("ulipInvested", ulipInvested);
             o.put("refreshedAt", refreshedAt);
             o.put("assets", toArr(assets));
@@ -367,6 +417,7 @@ public class Store {
                 ao.put("code", a.code);
                 ao.put("platform", a.platform);
                 if (!a.owner.isEmpty()) ao.put("owner", a.owner);
+                if (!a.currency.isEmpty()) ao.put("ccy", a.currency);
                 if (!a.category.isEmpty()) ao.put("cat", a.category);
                 if (a.manual()) {
                     ao.put("kind", a.kind); ao.put("principal", a.principal); ao.put("rate", a.rate);
@@ -443,6 +494,13 @@ public class Store {
 
     /** Accepts v2 backups and v1 (ULIP Tracker) backups. */
     public synchronized void fromJson(JSONObject o) throws Exception {
+        JSONObject oc = o.optJSONObject("ownerCcy");
+        ownerCcy.clear();
+        if (oc != null) {
+            java.util.Iterator<String> it = oc.keys();
+            while (it.hasNext()) { String k = it.next(); ownerCcy.put(k, oc.optString(k, "INR")); }
+        }
+        mixedCache = null;
         List<Asset> list = new ArrayList<>();
         List<Asset> idx = new ArrayList<>();
         JSONArray pa = o.optJSONArray("policies");
@@ -468,6 +526,7 @@ public class Store {
                 a.code = ao.optString("code", "");
                 a.platform = ao.optString("platform", "");
                 a.owner = ao.optString("owner", "");
+                a.currency = ao.optString("ccy", "");
                 a.category = ao.optString("cat", "");
                 a.kind = ao.optString("kind", "");
                 a.principal = ao.optDouble("principal", 0); a.rate = ao.optDouble("rate", 0);

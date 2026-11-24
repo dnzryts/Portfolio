@@ -3,7 +3,7 @@
 Two Android apps, written in plain Java on the Android framework only (no AndroidX or other
 libraries). Each folder is an Android Studio project and also includes the APK built from it.
 
-## Portfolio (`Portfolio/`, package `com.uliptracker`, v8.5)
+## Portfolio (`Portfolio/`, package `com.uliptracker`, v8.6)
 
 | File | What it does |
 |---|---|
@@ -33,7 +33,7 @@ libraries). Each folder is an Android Studio project and also includes the APK b
 | `Parser.java` | Reads pasted SBI Life NAV tables |
 | `ChartView.java`, `DonutView.java`, `NavIcon.java`, `Ui.java` | Charts, donut, bottom-bar icons, colours, animations |
 
-## Portfolio for Galaxy Watch (`Portfolio/watch`, package `com.uliptracker.watch`, v1.0)
+## Portfolio for Galaxy Watch (`Portfolio/watch`, package `com.uliptracker.watch`, v1.1)
 
 A small Wear OS app (Wear OS 3 or later; built and checked here, not yet tried on a watch): total value, today's change, overall gain,
 totals by type and top holdings, with family profiles and privacy mode. It reuses the phone

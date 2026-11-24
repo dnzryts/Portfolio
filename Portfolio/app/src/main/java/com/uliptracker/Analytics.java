@@ -372,8 +372,14 @@ public final class Analytics {
     // ------------------------------------------------------------------ helpers
     /** Compact rupees for chart labels: ₹45.2L, ₹1.35Cr. */
     public static String shortRupees(double v) {
-        if (Ui.PRIVATE) return "₹•••";
+        if (Ui.PRIVATE) return Ui.SYM.trim() + "•••";
         double a = Math.abs(v);
+        if (!"INR".equals(Ui.CCY)) {      // K / M / B outside India
+            String t = a >= 1e9 ? String.format(Locale.US, "%.2fB", a / 1e9) : a >= 1e6 ? String.format(Locale.US, "%.2fM", a / 1e6)
+                    : a >= 1e3 ? String.format(Locale.US, "%.1fK", a / 1e3) : String.format(Locale.US, "%.0f", a);
+            t = t.replace(".00B", "B").replace(".00M", "M").replace(".0K", "K");
+            return (v < 0 ? "-" : "") + Ui.SYM + t;
+        }
         String s = a >= 1e7 ? String.format(Locale.US, "%.2fCr", a / 1e7)
                 : a >= 1e5 ? String.format(Locale.US, "%.1fL", a / 1e5)
                 : a >= 1e3 ? String.format(Locale.US, "%.0fk", a / 1e3) : String.format(Locale.US, "%.0f", a);

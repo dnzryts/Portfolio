@@ -105,6 +105,7 @@ public class WatchActivity extends Activity {
 
     // ------------------------------------------------------------------ screen
     private void render() {
+        Ui.setCurrency(store.viewCcy());
         int w = getResources().getDisplayMetrics().widthPixels;
         boolean round = getResources().getConfiguration().isScreenRound();
         LinearLayout col = new LinearLayout(this);
@@ -237,7 +238,7 @@ public class WatchActivity extends Activity {
 
     private String compact(double v) { return Analytics.shortRupees(v); }
 
-    private String signedCompact(double v) { return Ui.PRIVATE ? "₹•••" : (v >= 0 ? "+" : "") + Analytics.shortRupees(v); }
+    private String signedCompact(double v) { return Ui.PRIVATE ? Ui.SYM.trim() + "•••" : (v >= 0 ? "+" : "") + Analytics.shortRupees(v); }
 
     private static String pct(double p) { return String.format(Locale.US, "  %+.2f%%", p); }
 

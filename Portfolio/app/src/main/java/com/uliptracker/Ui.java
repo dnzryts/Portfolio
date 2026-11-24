@@ -20,7 +20,7 @@ public final class Ui {
     public static boolean LIGHT;
     /** Privacy mode: hide money amounts and quantities. */
     public static boolean PRIVATE;
-    public static final String MASK = "₹ ••••••";
+    public static String MASK = "₹ ••••••";
 
     public static final int THEME_SYSTEM = 0, THEME_LIGHT = 1, THEME_DARK = 2;
 
@@ -66,10 +66,57 @@ public final class Ui {
     }
 
     public static String rupeesRaw(double v) {
+        if (!"INR".equals(CCY)) {
+            // other currencies: their own symbol, international grouping (1,234,567)
+            boolean big = Math.abs(v) >= 100000;
+            String n = String.format(Locale.US, big ? "%,.0f" : "%,.2f", Math.abs(v));
+            return (v < 0 ? "-" : "") + SYM + n;
+        }
         NumberFormat f = NumberFormat.getCurrencyInstance(IN);
         f.setMaximumFractionDigits(v >= 100000 || v <= -100000 ? 0 : 2);
         return f.format(v).replace("Rs.", "₹").replace("INR", "₹");
     }
+
+    // ------------------------------------------------------------------ currency of the profile on screen
+    /** ISO code and symbol used for every amount on screen. No conversion: amounts are already in this currency. */
+    public static String CCY = "INR", SYM = "₹";
+
+    /** {code, symbol, flag, name} for the common currencies. */
+    public static final String[][] CURRENCIES = {
+            {"INR", "₹", "🇮🇳", "Indian rupee"}, {"SGD", "S$", "🇸🇬", "Singapore dollar"}, {"USD", "$", "🇺🇸", "US dollar"},
+            {"AED", "AED ", "🇦🇪", "UAE dirham"}, {"GBP", "£", "🇬🇧", "British pound"}, {"EUR", "€", "🇪🇺", "Euro"},
+            {"AUD", "A$", "🇦🇺", "Australian dollar"}, {"CAD", "C$", "🇨🇦", "Canadian dollar"}, {"NZD", "NZ$", "🇳🇿", "New Zealand dollar"},
+            {"SAR", "SAR ", "🇸🇦", "Saudi riyal"}, {"QAR", "QAR ", "🇶🇦", "Qatari riyal"}, {"KWD", "KWD ", "🇰🇼", "Kuwaiti dinar"},
+            {"OMR", "OMR ", "🇴🇲", "Omani rial"}, {"BHD", "BHD ", "🇧🇭", "Bahraini dinar"}, {"MYR", "RM", "🇲🇾", "Malaysian ringgit"},
+            {"HKD", "HK$", "🇭🇰", "Hong Kong dollar"}, {"JPY", "¥", "🇯🇵", "Japanese yen"}, {"CHF", "CHF ", "🇨🇭", "Swiss franc"},
+    };
+
+    public static String symbolOf(String code) {
+        for (String[] c : CURRENCIES) if (c[0].equals(code)) return c[1];
+        try {
+            String s = java.util.Currency.getInstance(code).getSymbol(Locale.US);
+            return s.equals(code) ? code + " " : s;
+        } catch (Exception e) { return code + " "; }
+    }
+
+    public static String flagOf(String code) {
+        for (String[] c : CURRENCIES) if (c[0].equals(code)) return c[2];
+        return "💱";
+    }
+
+    public static String nameOf(String code) {
+        for (String[] c : CURRENCIES) if (c[0].equals(code)) return c[3];
+        try { return java.util.Currency.getInstance(code).getDisplayName(Locale.US); } catch (Exception e) { return code; }
+    }
+
+    public static void setCurrency(String code) {
+        CCY = code == null || code.isEmpty() ? "INR" : code;
+        SYM = symbolOf(CCY);
+        MASK = SYM.trim() + " ••••••";
+    }
+
+    /** A price per unit in the current currency, e.g. "S$12.34". */
+    public static String price(double v) { return SYM + String.format(Locale.US, "%,.2f", v); }
 
     public static String nav(double v) { return String.format(Locale.US, "%.4f", v); }
 

@@ -297,6 +297,8 @@ public class MainActivity extends Activity {
             return;
         }
         updateNav();
+        // amounts are shown in the currency of the profile on screen (no conversion)
+        Ui.setCurrency(screen == 1 && current != null ? store.ccyOf(current.ownerOrDefault()) : store.viewCcy());
         if (screen == 1 && current != null) { if (current.manual()) showManual(current, animate); else showAsset(current, animate); }
         else if (screen == 2) showPaste(null);
         else if (screen == 3) showImport(animate);
@@ -397,6 +399,7 @@ public class MainActivity extends Activity {
         ScrollView savedScroller = scroller;
         offscreen = true;
         tab = forTab; screen = 0;
+        Ui.setCurrency(store.viewCcy());
         try {
             if (tab == 0) showDashboard(false);
             else if (tab == 1) showPortfolio(false);
@@ -480,7 +483,7 @@ public class MainActivity extends Activity {
     }
 
     private Double num(String s) {
-        try { return Double.parseDouble(s.trim().replace(",", "").replace("₹", "")); } catch (Exception e) { return null; }
+        try { return Double.parseDouble(s.trim().replace(",", "").replace("₹", "").replace(Ui.SYM.trim(), "")); } catch (Exception e) { return null; }
     }
 
     private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
@@ -693,7 +696,7 @@ public class MainActivity extends Activity {
         add(col, netWorthCard(), idx++, animate);
         View insc = insightsCard();
         if (insc != null) add(col, insc, idx++, animate);
-        add(col, taxCard(), idx++, animate);
+        if ("INR".equals(Ui.CCY)) add(col, taxCard(), idx++, animate);
         View bench = benchmarkCard(scope);
         if (bench != null) add(col, bench, idx++, animate);
         String ins = insights(scope);
@@ -979,7 +982,7 @@ public class MainActivity extends Activity {
             c.addView(nameRow);
             Map.Entry<Long, Double> l = a.latest();
             String px = l == null ? (a.error != null ? "⚠ " + a.error : "Loading…")
-                    : (a.type == Store.INDEX ? String.format(Locale.US, "%,.2f", l.getValue()) : "₹" + String.format(Locale.US, "%,.2f", l.getValue()));
+                    : (a.type == Store.INDEX ? String.format(Locale.US, "%,.2f", l.getValue()) : priceSym(a) + String.format(Locale.US, "%,.2f", l.getValue()));
             TextView pv = Ui.text(this, px, 18, a.error != null && l == null ? Ui.RED : Ui.TEXT, true);
             pv.setSingleLine(true);
             c.addView(pv);
@@ -1138,13 +1141,19 @@ public class MainActivity extends Activity {
         pr.addView(Ui.text(this, "✎", 18, Ui.ACCENT, true));
         prof.addView(pr);
         prof.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { nameDialog(); } });
+        LinearLayout cr = Ui.row(this);
+        cr.setPadding(0, (int) (12 * dp), 0, 0);
+        cr.addView(Ui.text(this, "Currency", 14, Ui.SUB, false), Ui.weight(1));
+        cr.addView(Ui.text(this, Ui.flagOf(store.ccyOf("Me")) + "  " + store.ccyOf("Me") + " · " + Ui.nameOf(store.ccyOf("Me")) + "  ›", 14, Ui.ACCENT, true));
+        cr.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { currencyDialog("Me"); } });
+        prof.addView(cr);
         add(col, prof, idx++, animate);
         col.addView(Ui.space(this, 4));
         add(col, Ui.text(this, "Privacy", 13, Ui.SUB, true), idx++, animate);
         col.addView(Ui.space(this, 6));
         LinearLayout pc = Ui.card(this);
         pc.setPadding(0, (int) (4 * dp), 0, (int) (4 * dp));
-        pc.addView(switchRow("Hide amounts now", "Same as the eye button. Hides ₹ values and units, keeps % and charts",
+        pc.addView(switchRow("Hide amounts now", "Same as the eye button. Hides amounts and units, keeps % and charts",
                 Ui.PRIVATE, true, new Toggle() {
                     @Override public void set(boolean on) { Ui.PRIVATE = on; ui.post(new Runnable() { @Override public void run() { render(false); } }); }
                 }));
@@ -1207,7 +1216,7 @@ public class MainActivity extends Activity {
                         : store.policies.size() + " polic" + (store.policies.size() == 1 ? "y" : "ies")},
                 {"How to get your CAS", "Free from CAMS or KFintech, by e-mail"},
                 {"Automatic backup", Alerts.prefs(this).getString("bkTree", null) == null ? "Off · encrypted daily copy to a folder" : "On · encrypted daily copy"},
-                {"Family members", store.owners().size() + " · pictures, names, or add via the Owner field"},
+                {"Family members", store.owners().size() + " · pictures, currencies, names, or add via the Owner field"},
                 {"Insights", "Concentration, overlap, Regular plans, vs Nifty"},
                 {"Capital gains & tax", "This year's estimate and tax harvesting"}};
         for (int i = 0; i < imp.length; i++) {
@@ -1832,6 +1841,15 @@ public class MainActivity extends Activity {
         back.setPadding(0, 0, 0, (int) (10 * dp));
         back.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { slideBack(); } });
         col.addView(back);
+        String profCcy = store.ccyOf(a.ownerOrDefault());
+        if (a.type != Store.INDEX && !a.watch && !a.currency.isEmpty() && !a.currency.equals(profCcy)) {
+            LinearLayout wc = Ui.card(this);
+            wc.addView(Ui.text(this, "💱  Trades in " + a.currency + ", profile is in " + profCcy, 14, Ui.TEXT, true));
+            wc.addView(Ui.text(this, "Amounts aren't converted, so this holding's value is added to " + a.ownerOrDefault()
+                    + "'s " + profCcy + " totals as it is. Move it to a profile in " + a.currency + " (edit › Owner), or set this profile's currency in More.",
+                    12, Ui.SUB, false));
+            col.addView(wc);
+        }
 
         Map.Entry<Long, Double> l = a.latest();
         LinearLayout h = Ui.heroCard(this, (Ui.TYPE_COLORS[a.type] & 0x00FFFFFF) | 0x40000000, Ui.CARD);
@@ -1844,7 +1862,7 @@ public class MainActivity extends Activity {
         h.addView(Ui.text(this, kind, 12, Ui.HERO_SUB, false));
         h.addView(Ui.text(this, a.name, 20, Ui.TEXT, true));
         h.addView(Ui.space(this, 8));
-        final String cur = a.type == Store.INDEX ? "" : "₹";
+        final String cur = a.type == Store.INDEX ? "" : priceSym(a);
         TextView price = Ui.text(this, l == null ? "No price yet" : cur + priceFmt.format(l.getValue()), 30, Ui.TEXT, true);
         price.setSingleLine(true);
         h.addView(price, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -1980,7 +1998,7 @@ public class MainActivity extends Activity {
             if (v > 0) stat(hc, "Current value", Ui.rupees(v), Ui.TEXT);
             if (allCost && cost > 0) {
                 stat(hc, "Invested", Ui.rupees(cost), Ui.TEXT);
-                if (u > 0) stat(hc, "Average cost", "₹" + priceFmt.format(cost / u), Ui.TEXT);
+                if (u > 0) stat(hc, "Average cost", Ui.SYM + priceFmt.format(cost / u), Ui.TEXT);
                 if (v > 0) stat(hc, "Profit / loss", signed(v - cost) + "  (" + Ui.pct((v - cost) / cost * 100) + ")", Ui.colorFor(v - cost));
             }
             Object[] hx = Store.xirr(lots);
@@ -2008,7 +2026,7 @@ public class MainActivity extends Activity {
                 t.setOrientation(LinearLayout.VERTICAL);
                 t.addView(Ui.text(this, x.platformOrDefault(), 14, Ui.TEXT, true));
                 String d = (x.units > 0 ? trimUnits(x.units) + (a.type == Store.STOCK ? " sh" : " u") : "Units not set")
-                        + (x.invested > 0 && x.units > 0 ? " · avg ₹" + priceFmt.format(x.invested / x.units) : "");
+                        + (x.invested > 0 && x.units > 0 ? " · avg " + Ui.SYM + priceFmt.format(x.invested / x.units) : "");
                 t.addView(Ui.text(this, d, 11, Ui.SUB, false));
                 r.addView(t, Ui.weight(1));
                 LinearLayout rt = new LinearLayout(this);
@@ -2320,7 +2338,7 @@ public class MainActivity extends Activity {
             units = numberField(stock ? "e.g. 25" : "e.g. 1234.567", a.units > 0 ? trimUnitsRaw(a.units) : null);
             box.addView(units);
             if (a.type != Store.ULIP) {
-                box.addView(Ui.text(this, stock ? "Average buy price per share (₹)" : "Amount invested (₹) · blank = NAV on purchase date",
+                box.addView(Ui.text(this, stock ? "Average buy price per share (" + Ui.SYM.trim() + ")" : "Amount invested (" + Ui.SYM.trim() + ") · blank = NAV on purchase date",
                         12, Ui.SUB, false));
                 String cv = null;
                 if (a.invested > 0) cv = stock && a.units > 0 ? String.format(Locale.US, "%.2f", a.invested / a.units)
@@ -2437,8 +2455,8 @@ public class MainActivity extends Activity {
         dateRow.setPadding(0, (int) (4 * dp), 0, (int) (8 * dp));
         box.addView(dateRow);
         final EditText units = div ? null : numberField(lot.type == Store.STOCK ? "Quantity" : "Units", t.units > 0 ? trimUnitsRaw(t.units) : null);
-        final EditText price = div ? null : numberField("Price per unit (₹)", t.price > 0 ? String.format(Locale.US, "%.4f", t.price) : null);
-        final EditText amount = numberField(div ? "Dividend received (₹)" : "Total amount (₹, optional)",
+        final EditText price = div ? null : numberField("Price per unit (" + Ui.SYM.trim() + ")", t.price > 0 ? String.format(Locale.US, "%.4f", t.price) : null);
+        final EditText amount = numberField(div ? "Dividend received (" + Ui.SYM.trim() + ")" : "Total amount (" + Ui.SYM.trim() + ", optional)",
                 t.amount > 0 ? String.format(Locale.US, "%.2f", t.amount) : null);
         final Runnable fillPrice = new Runnable() {
             @Override public void run() {
@@ -2464,10 +2482,10 @@ public class MainActivity extends Activity {
         if (!div) {
             box.addView(Ui.text(this, lot.type == Store.STOCK ? "Quantity (shares)" : "Units", 12, Ui.SUB, false));
             box.addView(units);
-            box.addView(Ui.text(this, "Price per unit (₹) · filled from history when available", 12, Ui.SUB, false));
+            box.addView(Ui.text(this, "Price per unit (" + Ui.SYM.trim() + ") · filled from history when available", 12, Ui.SUB, false));
             box.addView(price);
-            box.addView(Ui.text(this, t.kind == Ledger.BUY ? "Total paid incl. charges (₹) · blank = units × price"
-                    : "Total received after charges (₹) · blank = units × price", 12, Ui.SUB, false));
+            box.addView(Ui.text(this, t.kind == Ledger.BUY ? "Total paid incl. charges (" + Ui.SYM.trim() + ") · blank = units × price"
+                    : "Total received after charges (" + Ui.SYM.trim() + ") · blank = units × price", 12, Ui.SUB, false));
         } else {
             box.addView(Ui.text(this, "Amount", 12, Ui.SUB, false));
         }
@@ -2534,7 +2552,7 @@ public class MainActivity extends Activity {
         if (existing == null) sp.start = LocalDate.now().withDayOfMonth(1).toEpochDay();
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        box.addView(Ui.text(this, "Monthly amount (₹)", 12, Ui.SUB, false));
+        box.addView(Ui.text(this, "Monthly amount (" + Ui.SYM.trim() + ")", 12, Ui.SUB, false));
         final EditText amt = numberField("e.g. 10000", sp.amount > 0 ? String.format(Locale.US, "%.0f", sp.amount) : null);
         box.addView(amt);
         box.addView(Ui.text(this, "Day of month", 12, Ui.SUB, false));
@@ -3259,12 +3277,12 @@ public class MainActivity extends Activity {
             Store.Asset target = null;
             for (Store.Asset a : store.assets)
                 if (!a.watch && a.type == it.type && a.code.equalsIgnoreCase(it.code) && a.platform.trim().equalsIgnoreCase(platform)
-                        && (store.ownerFilter == null || a.ownerOrDefault().equalsIgnoreCase(store.ownerFilter))) target = a;
+                        && (selectedPerson() == null || a.ownerOrDefault().equalsIgnoreCase(selectedPerson()))) target = a;
             if (target == null) {
                 target = new Store.Asset(it.type, it.matchName.isEmpty() ? it.name : it.matchName);
                 target.code = it.code;
                 target.platform = platform;
-                if (store.ownerFilter != null && !store.ownerFilter.equals("Me")) target.owner = store.ownerFilter;
+                if (selectedPerson() != null && !selectedPerson().equals("Me")) target.owner = selectedPerson();
                 store.assets.add(target);
                 added++;
             } else { target.hidden = false; updated++; }
@@ -3362,7 +3380,7 @@ public class MainActivity extends Activity {
         number.setHint("Policy number (optional)");
         number.setText(p.number);
         box.addView(number);
-        box.addView(Ui.text(this, "Premium (₹)", 12, Ui.SUB, false));
+        box.addView(Ui.text(this, "Premium (" + Ui.SYM.trim() + ")", 12, Ui.SUB, false));
         final EditText prem = numberField("e.g. 100000", p.premium > 0 ? String.format(Locale.US, "%.0f", p.premium) : null);
         box.addView(prem);
         final android.widget.RadioGroup rg = new android.widget.RadioGroup(this);
@@ -3397,7 +3415,7 @@ public class MainActivity extends Activity {
             });
             box.addView(row);
         }
-        box.addView(Ui.text(this, "Sum assured (₹, optional)", 12, Ui.SUB, false));
+        box.addView(Ui.text(this, "Sum assured (" + Ui.SYM.trim() + ", optional)", 12, Ui.SUB, false));
         final EditText sa = numberField("e.g. 1000000", p.sumAssured > 0 ? String.format(Locale.US, "%.0f", p.sumAssured) : null);
         box.addView(sa);
         box.addView(Ui.text(this, "Remind me this many days before", 12, Ui.SUB, false));
@@ -3464,18 +3482,31 @@ public class MainActivity extends Activity {
     private View ownerChips() {
         final List<String> owners = store.owners();
         if (owners.size() <= 1) return null;
-        final List<String> labels = new ArrayList<>();
-        labels.add("Everyone");
-        labels.addAll(owners);
+        // each chip: label, filter (null = everyone in the default currency, "@SGD" = everyone in SGD, or a name), person
+        final List<String> labels = new ArrayList<>(), filters = new ArrayList<>(), people = new ArrayList<>();
+        boolean mixed = store.mixed();
+        List<String> ccys = store.currencies();
+        if (!mixed) { labels.add("👪 Everyone"); filters.add(null); people.add(null); }
+        else for (int k = 0; k < ccys.size(); k++) {
+            labels.add(Ui.flagOf(ccys.get(k)) + " Everyone · " + Ui.symbolOf(ccys.get(k)).trim());
+            filters.add(k == 0 ? null : "@" + ccys.get(k));
+            people.add(null);
+        }
+        for (String o : owners) {
+            labels.add(mixed ? o + " · " + Ui.symbolOf(store.ccyOf(o)).trim() : o);
+            filters.add(o);
+            people.add(o);
+        }
         int sel = 0;
-        if (store.ownerFilter != null) for (int i = 0; i < owners.size(); i++) if (owners.get(i).equalsIgnoreCase(store.ownerFilter)) sel = i + 1;
+        for (int i = 0; i < filters.size(); i++) {
+            String f = filters.get(i);
+            if (f == null ? store.ownerFilter == null : f.equalsIgnoreCase(store.ownerFilter)) { sel = i; break; }
+        }
         HorizontalScrollView hs = new HorizontalScrollView(this);
         hs.setHorizontalScrollBarEnabled(false);
-        String[] arr = new String[labels.size()];
-        for (int i = 0; i < arr.length; i++) arr[i] = (i == 0 ? "👪 " : "") + labels.get(i);
-        View chipRow = chips(arr, sel, new Pick() {
+        View chipRow = chips(labels.toArray(new String[0]), sel, new Pick() {
             @Override public void on(int i) {
-                store.ownerFilter = i == 0 ? null : owners.get(i - 1);
+                store.ownerFilter = filters.get(i);
                 Alerts.prefs(MainActivity.this).edit().putString("owner", store.ownerFilter).apply();
                 render(true);
             }
@@ -3483,8 +3514,9 @@ public class MainActivity extends Activity {
         // a small round picture before each person's name
         List<TextView> tvs = new ArrayList<>();
         collectTexts(chipRow, tvs);
-        for (int i = 1; i < tvs.size() && i <= owners.size(); i++) {
-            final String who = owners.get(i - 1);
+        for (int i = 0; i < tvs.size() && i < people.size(); i++) {
+            final String who = people.get(i);
+            if (who == null) continue;
             android.graphics.drawable.Drawable d = Avatars.drawable(this, who, (int) (20 * dp));
             tvs.get(i).setCompoundDrawablesRelative(d, null, null, null);
             tvs.get(i).setCompoundDrawablePadding((int) (6 * dp));
@@ -3499,12 +3531,17 @@ public class MainActivity extends Activity {
         return hs;
     }
 
+    /** The person currently selected, or null for an "Everyone" view. */
+    private String selectedPerson() {
+        return store.ownerFilter == null || store.ownerFilter.startsWith("@") ? null : store.ownerFilter;
+    }
+
     private AutoCompleteTextView ownerField(String current) {
         final AutoCompleteTextView f = new AutoCompleteTextView(this);
         f.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, store.owners()));
         f.setThreshold(0);
         f.setHint("Me, or a family member's name");
-        f.setText(current == null || current.isEmpty() ? (store.ownerFilter != null && !store.ownerFilter.equals("Me") ? store.ownerFilter : "") : current);
+        f.setText(current == null || current.isEmpty() ? (selectedPerson() != null && !selectedPerson().equals("Me") ? selectedPerson() : "") : current);
         f.setOnFocusChangeListener(new View.OnFocusChangeListener() {
             @Override public void onFocusChange(View v, boolean has) { if (has) f.showDropDown(); }
         });
@@ -3545,17 +3582,17 @@ public class MainActivity extends Activity {
         final EditText amount, value, rate, invested;
         final long[] dates = {a.start > 0 ? a.start : LocalDate.now().toEpochDay(), a.maturity};
         if (fd) {
-            box.addView(Ui.text(this, rd ? "Monthly instalment (₹)" : "Deposit amount (₹)", 12, Ui.SUB, false));
+            box.addView(Ui.text(this, rd ? "Monthly instalment (" + Ui.SYM.trim() + ")" : "Deposit amount (" + Ui.SYM.trim() + ")", 12, Ui.SUB, false));
             amount = numberField(rd ? "e.g. 10000" : "e.g. 500000", a.principal > 0 ? String.format(Locale.US, "%.0f", a.principal) : null);
             box.addView(amount);
             value = null; invested = null;
         } else {
-            box.addView(Ui.text(this, loan ? "Outstanding amount today (₹)" : "Current value / balance today (₹)", 12, Ui.SUB, false));
+            box.addView(Ui.text(this, loan ? "Outstanding amount today (" + Ui.SYM.trim() + ")" : "Current value / balance today (" + Ui.SYM.trim() + ")", 12, Ui.SUB, false));
             value = numberField("e.g. 250000", a.baseValue > 0 ? String.format(Locale.US, "%.0f", a.accruedOn(LocalDate.now().toEpochDay())) : null);
             box.addView(value);
             amount = null;
             if (!loan) {
-                box.addView(Ui.text(this, "Amount you've put in (₹, optional, for gain)", 12, Ui.SUB, false));
+                box.addView(Ui.text(this, "Amount you've put in (" + Ui.SYM.trim() + ", optional, for gain)", 12, Ui.SUB, false));
                 invested = numberField("e.g. 200000", a.invested > 0 ? String.format(Locale.US, "%.0f", a.invested) : null);
                 box.addView(invested);
             } else invested = null;
@@ -3871,7 +3908,7 @@ public class MainActivity extends Activity {
         List<View> views = new ArrayList<>();
         int gi = 0;
         List<Store.Asset> all = store.visible(-1);
-        views.add(stackCard("🌐", store.ownerFilter == null ? "All investments" : store.ownerFilter + " · all", all, CARD_GRADIENTS[gi++], new Scope() {
+        views.add(stackCard("🌐", selectedPerson() == null ? (store.mixed() ? "All · " + Ui.CCY : "All investments") : selectedPerson() + " · all", all, CARD_GRADIENTS[gi++], new Scope() {
             @Override public void open() { scopeKind = 0; tab = 1; screen = 0; render(true); }
         }, animate));
         int[] types = {Store.STOCK, Store.MF, Store.ULIP};
@@ -4069,6 +4106,14 @@ public class MainActivity extends Activity {
         back.setPadding(0, 0, 0, (int) (10 * dp));
         back.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { slideBack(); } });
         col.addView(back);
+        if (!"INR".equals(Ui.CCY)) {
+            LinearLayout nc = Ui.card(this);
+            nc.addView(Ui.text(this, "Indian tax only", 16, Ui.TEXT, true));
+            nc.addView(Ui.text(this, "This page follows Indian capital-gains rules, so it covers profiles in ₹. Pick a ₹ profile at the top of "
+                    + "Dashboard or Portfolio to see it. For " + Ui.nameOf(Ui.CCY) + " holdings, check the rules where you're resident.", 13, Ui.SUB, false));
+            col.addView(nc);
+            return;
+        }
         LocalDate now = LocalDate.now();
         int fy = now.getMonthValue() >= 4 ? now.getYear() : now.getYear() - 1;
         long fs = LocalDate.of(fy, 4, 1).toEpochDay(), fe = LocalDate.of(fy + 1, 3, 31).toEpochDay(), today = now.toEpochDay();
@@ -4275,8 +4320,9 @@ public class MainActivity extends Activity {
         dialog().setTitle("Family members").setItems(owners.toArray(new String[0]), new DialogInterface.OnClickListener() {
             @Override public void onClick(DialogInterface d, int w) {
                 final String who = owners.get(w);
-                dialog().setTitle(who).setItems(new String[]{"🖼️ Change picture\nPhoto or emoji", "✏️ Rename"}, new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d1, int w1) { if (w1 == 0) avatarDialog(who); else renameOne(who); }
+                dialog().setTitle(who).setItems(new String[]{"🖼️ Change picture\nPhoto or emoji",
+                        Ui.flagOf(store.ccyOf(who)) + " Currency\n" + store.ccyOf(who) + " · " + Ui.nameOf(store.ccyOf(who)), "✏️ Rename"}, new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d1, int w1) { if (w1 == 0) avatarDialog(who); else if (w1 == 1) currencyDialog(who); else renameOne(who); }
                 }).show();
             }
         }).show();
@@ -4292,6 +4338,9 @@ public class MainActivity extends Activity {
                         String to = ownerValue(e.getText().toString());
                         for (Store.Asset a : store.assets) if (a.ownerOrDefault().equalsIgnoreCase(from)) a.owner = to;
                         Avatars.rename(MainActivity.this, from, to.isEmpty() ? "Me" : to);
+                        String fc = store.ccyOf(from);
+                        store.setCcy(from, null);
+                        store.setCcy(to.isEmpty() ? "Me" : to, fc);
                         if (from.equalsIgnoreCase(store.ownerFilter)) { store.ownerFilter = to.isEmpty() ? "Me" : to; Alerts.prefs(MainActivity.this).edit().putString("owner", store.ownerFilter).apply(); }
                         store.save(); render(false);
                     }
@@ -4625,7 +4674,7 @@ public class MainActivity extends Activity {
         top.addView(Ui.text(this, "Range of outcomes", 16, Ui.TEXT, true), Ui.weight(1));
         cc.addView(top);
         cc.addView(Ui.space(this, 6));
-        cc.addView(chips(new String[]{"Future ₹", "Today's money"}, realMoney() ? 1 : 0, new Pick() {
+        cc.addView(chips(new String[]{"Future " + Ui.SYM.trim(), "Today's money"}, realMoney() ? 1 : 0, new Pick() {
             @Override public void on(int i) { ap().edit().putBoolean("an_real", i == 1).apply(); render(false); }
         }, false));
         final TextView read = Ui.text(this, "", 12, Ui.SUB, false);
@@ -4661,7 +4710,7 @@ public class MainActivity extends Activity {
         LinearLayout er = Ui.row(this);
         er.setPadding(0, (int) (6 * dp), 0, (int) (6 * dp));
         er.addView(Ui.text(this, "Extra each month", 14, Ui.SUB, false), Ui.weight(1));
-        er.addView(Ui.text(this, (extraMonthly() > 0 ? Ui.rupees(extraMonthly()) : "₹0") + "  ✎", 14, Ui.ACCENT, true));
+        er.addView(Ui.text(this, (extraMonthly() > 0 ? Ui.rupees(extraMonthly()) : Ui.SYM + "0") + "  ✎", 14, Ui.ACCENT, true));
         er.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { extraDialog(); } });
         pc.addView(er);
         pc.addView(Ui.text(this, "Increase investing each year by", 13, Ui.SUB, false));
@@ -4802,7 +4851,7 @@ public class MainActivity extends Activity {
         name.setSingleLine(true);
         if (hasGoal()) name.setText(ap().getString("goal_name", ""));
         box.addView(name);
-        box.addView(Ui.text(this, "Amount in today's money (₹)", 12, Ui.SUB, false));
+        box.addView(Ui.text(this, "Amount in today's money (" + Ui.SYM.trim() + ")", 12, Ui.SUB, false));
         final EditText amt = numberField("e.g. 10000000", hasGoal() ? String.format(Locale.US, "%.0f", goalToday()) : null);
         box.addView(amt);
         box.addView(Ui.text(this, "Target year", 12, Ui.SUB, false));
@@ -5231,7 +5280,7 @@ public class MainActivity extends Activity {
         for (Store.Asset l : store.visible(Store.LOAN)) {
             if (l.rate >= 9 && l.value() > 0 && (bestDep <= 0 || l.rate > bestDep + 1.5)) {
                 out.add(new Sug(1, "🏦", shortName(l) + " costs " + fmt1(l.rate) + "% a year",
-                        "Each ₹1 lakh prepaid saves about " + Ui.rupees(l.rate * 1000).replaceAll("\\.\\d+$", "") + " a year in interest"
+                        "Each " + Ui.rupees(100000).replaceAll("\\.\\d+$", "") + " prepaid saves about " + Ui.rupees(l.rate * 1000).replaceAll("\\.\\d+$", "") + " a year in interest"
                                 + (bestDep > 0 ? ", versus about " + Ui.rupees(bestDep * 1000).replaceAll("\\.\\d+$", "") + " (taxable) from your deposits" : "")
                                 + ". Keep your emergency fund intact and check prepayment charges; home-loan tax benefits can change the maths.", null, null));
             }
@@ -5255,7 +5304,7 @@ public class MainActivity extends Activity {
         if (f.monthly <= 0) {
             double v = f.pct(H, 0.5, 10000) - f.pct(H, 0.5, 0);
             out.add(new Sug(1, "🔁", "No regular investing found",
-                    "₹10,000 a month at your mix's assumptions could add about " + Analytics.shortRupees(v) + " in " + H + " years (middle outcome). "
+                    Ui.rupees(10000).replaceAll("\\.\\d+$", "") + " a month at your mix's assumptions could add about " + Analytics.shortRupees(v) + " in " + H + " years (middle outcome). "
                             + "Add a SIP schedule to a holding, or an extra monthly amount on the Forecast page.", "Add extra monthly",
                     new Runnable() { @Override public void run() { extraDialog(); } }));
         } else if (stepUp() <= 0) {
@@ -5319,7 +5368,7 @@ public class MainActivity extends Activity {
             for (Ledger.Txn t : a.txns) first = Math.min(first, t.day);
             if (today - first > 365) { ltcg = true; break; }
         }
-        if (ltcg) out.add(new Sug(2, "🌾", "Use this year's ₹1.25 lakh tax-free long-term gains",
+        if (ltcg && "INR".equals(Ui.CCY)) out.add(new Sug(2, "🌾", "Use this year's ₹1.25 lakh tax-free long-term gains",
                 "Long-term equity gains up to ₹1.25 lakh a year are tax-free. Selling and buying back resets your cost so you pay less tax later. "
                         + "The Tax page shows how much is left this year.", "Open Tax", new Runnable() { @Override public void run() { screen = 6; render(true); } }));
         // 10. deposits maturing soon
@@ -5590,7 +5639,7 @@ public class MainActivity extends Activity {
                     }
                 }));
         c.addView(divider());
-        c.addView(switchRow("Hide amounts on watch", "The watch opens with ₹ values hidden; tap the total to show them",
+        c.addView(switchRow("Hide amounts on watch", "The watch opens with amounts hidden; tap the total to show them",
                 Alerts.prefs(this).getBoolean("watch_hide", false), true, new Toggle() {
                     @Override public void set(boolean on) { Alerts.prefs(MainActivity.this).edit().putBoolean("watch_hide", on).apply(); }
                 }));
@@ -5819,5 +5868,50 @@ public class MainActivity extends Activity {
         if (l.startsWith("education")) return "🎓";
         if (l.startsWith("credit")) return "💳";
         return "📦";
+    }
+
+
+    /** Symbol for a holding's prices: its exchange currency if known, else its owner's. */
+    private String priceSym(Store.Asset a) {
+        return Ui.symbolOf(a.currency != null && !a.currency.isEmpty() ? a.currency : store.ccyOf(a.ownerOrDefault()));
+    }
+
+    /** Choose a profile's currency: common ones first, then every ISO currency. */
+    private void currencyDialog(final String who) {
+        final List<String> codes = new ArrayList<>();
+        List<String> rows = new ArrayList<>();
+        for (String[] c : Ui.CURRENCIES) { codes.add(c[0]); rows.add(c[2] + " " + c[0] + " · " + c[1].trim() + "\n" + c[3]); }
+        codes.add("*");
+        rows.add("🌍 More currencies\nEvery other currency");
+        String title = "Me".equals(who) ? "Your currency" : who + "'s currency";
+        dialog().setTitle(title).setItems(rows.toArray(new String[0]), new DialogInterface.OnClickListener() {
+            @Override public void onClick(DialogInterface d, int w) {
+                if ("*".equals(codes.get(w))) { allCurrencies(who); return; }
+                applyCurrency(who, codes.get(w));
+            }
+        }).show();
+    }
+
+    private void allCurrencies(final String who) {
+        final List<String> codes = new ArrayList<>();
+        for (java.util.Currency c : java.util.Currency.getAvailableCurrencies()) codes.add(c.getCurrencyCode());
+        java.util.Collections.sort(codes);
+        String[] rows = new String[codes.size()];
+        for (int i = 0; i < rows.length; i++) rows[i] = codes.get(i) + " · " + Ui.nameOf(codes.get(i));
+        dialog().setTitle("All currencies").setItems(rows, new DialogInterface.OnClickListener() {
+            @Override public void onClick(DialogInterface d, int w) { applyCurrency(who, codes.get(w)); }
+        }).setNegativeButton("Cancel", null).show();
+    }
+
+    private void applyCurrency(String who, String code) {
+        store.setCcy(who, code);
+        store.save();
+        // a currency group that no longer exists falls back to the default view
+        if (store.ownerFilter != null && store.ownerFilter.startsWith("@") && !store.currencies().contains(store.ownerFilter.substring(1))) {
+            store.ownerFilter = null;
+            Alerts.prefs(this).edit().putString("owner", null).apply();
+        }
+        toast(("Me".equals(who) ? "Your" : who + "'s") + " amounts now show in " + code + ". Nothing is converted.");
+        render(false);
     }
 }

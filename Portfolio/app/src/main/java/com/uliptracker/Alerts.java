@@ -88,6 +88,7 @@ public final class Alerts {
 
     /** Check moves and post notifications. Each item alerts at most once per day per direction. */
     public static int check(Context c, Store store) {
+        Ui.setCurrency(store.viewCcy());
         if (Ui.TYPE_COLORS == null) Ui.applyTheme(c);
         boolean moves = enabled(c);
         float th = threshold(c);
@@ -107,7 +108,8 @@ public final class Alerts {
         for (Store.Asset a : store.everything()) {
             if (a.hidden || a.latest() == null || (a.targetAbove <= 0 && a.targetBelow <= 0)) continue;
             double px = a.latest().getValue();
-            String cur = a.type == Store.INDEX ? String.format(Locale.US, "%,.2f", px) : "₹" + String.format(Locale.US, "%,.2f", px);
+            String cur = a.type == Store.INDEX ? String.format(Locale.US, "%,.2f", px)
+                    : Ui.symbolOf(!a.currency.isEmpty() ? a.currency : store.ccyOf(a.ownerOrDefault())) + String.format(Locale.US, "%,.2f", px);
             if (a.targetAbove > 0 && px >= a.targetAbove) {
                 out.add(new String[]{"t:" + a.key() + ":u:" + a.targetAbove + "|" + today,
                         "▲ " + a.name + " crossed " + fmtTarget(a, a.targetAbove), "Now " + cur + " · price alert reached"});
@@ -244,7 +246,7 @@ public final class Alerts {
     }
 
     private static String fmtTarget(Store.Asset a, double v) {
-        return (a.type == Store.INDEX ? "" : "₹") + String.format(Locale.US, v >= 1000 ? "%,.0f" : "%,.2f", v);
+        return (a.type == Store.INDEX ? "" : Ui.symbolOf(a.currency.isEmpty() ? "INR" : a.currency)) + String.format(Locale.US, v >= 1000 ? "%,.0f" : "%,.2f", v);
     }
 
     private static String shortName(Store.Asset a) {

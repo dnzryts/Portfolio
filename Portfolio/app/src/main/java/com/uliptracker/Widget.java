@@ -66,6 +66,7 @@ public class Widget extends AppWidgetProvider {
 
     private static void update(Context c, AppWidgetManager m, int id, Store store) {
         try {
+            Ui.setCurrency(store.viewCcy());
             int layout = c.getResources().getIdentifier("widget", "layout", c.getPackageName());
             int img = c.getResources().getIdentifier("img", "id", c.getPackageName());
             if (layout == 0 || img == 0) return;

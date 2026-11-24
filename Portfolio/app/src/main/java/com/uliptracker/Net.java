@@ -105,7 +105,7 @@ public final class Net {
     }
 
     // ---------------------------------------------------------------- stocks
-    /** Returns [symbol, name, exchange label] for NSE/BSE equities and ETFs. */
+    /** Returns [symbol, name, exchange label] for equities and ETFs on any exchange, NSE/BSE first. */
     public static List<String[]> stockSearch(String q) throws Exception { return search(q, false); }
 
     /** Market indices (Nifty, Sensex, sector indices...). */
@@ -129,10 +129,17 @@ public final class Net {
                 out.add(new String[]{sym, name, ex.equals("NSI") ? "NSE" : ex.equals("BSE") ? "BSE" : ex});
                 continue;
             }
-            if (!(sym.endsWith(".NS") || sym.endsWith(".BO"))) continue;
-            out.add(new String[]{sym, name, sym.endsWith(".NS") ? "NSE" : "BSE"});
+            String qt = x.optString("quoteType", "");
+            if (!"EQUITY".equalsIgnoreCase(qt) && !"ETF".equalsIgnoreCase(qt)) continue;
+            boolean in = sym.endsWith(".NS") || sym.endsWith(".BO");
+            String ex = in ? (sym.endsWith(".NS") ? "NSE" : "BSE") : x.optString("exchDisp", x.optString("exchange", ""));
+            out.add(new String[]{sym, name, ex});
         }
-        return out;
+        // Indian listings first, then other exchanges (SGX, NASDAQ, LSE…)
+        List<String[]> sorted = new ArrayList<>();
+        for (String[] r : out) if (r[0].endsWith(".NS") || r[0].endsWith(".BO")) sorted.add(r);
+        for (String[] r : out) if (!(r[0].endsWith(".NS") || r[0].endsWith(".BO"))) sorted.add(r);
+        return sorted;
     }
 
     /** Fills prices with daily closes (5 years) plus today's live price; returns company name. */
@@ -147,6 +154,9 @@ public final class Net {
         return parseChart(body, symbol, into);
     }
 
+    /** Trading currency (ISO) of the last chart parsed on this thread, e.g. "SGD". */
+    public static final ThreadLocal<String> LAST_CCY = new ThreadLocal<>();
+
     static String parseChart(String body, String symbol, TreeMap<Long, Double> into) throws Exception {
         JSONObject chart = new JSONObject(body).getJSONObject("chart");
         JSONArray results = chart.optJSONArray("result");
@@ -155,13 +165,19 @@ public final class Net {
             throw new IOException(err != null ? err.optString("description", "Symbol not found") : "Symbol not found");
         }
         JSONObject r = results.getJSONObject(0);
+        JSONObject meta0 = r.optJSONObject("meta");
+        java.time.ZoneId zone = IST;                     // dates in the exchange's own time zone
+        if (meta0 != null) {
+            try { zone = java.time.ZoneId.of(meta0.optString("exchangeTimezoneName", "Asia/Kolkata")); } catch (Exception ignored) { }
+            LAST_CCY.set(meta0.optString("currency", "").toUpperCase(java.util.Locale.ROOT));
+        }
         JSONArray ts = r.optJSONArray("timestamp");
         JSONObject quote = r.getJSONObject("indicators").getJSONArray("quote").getJSONObject(0);
         JSONArray close = quote.optJSONArray("close");
         if (ts != null && close != null) {
             for (int i = 0; i < ts.length() && i < close.length(); i++) {
                 if (close.isNull(i)) continue;
-                long day = Instant.ofEpochSecond(ts.getLong(i)).atZone(IST).toLocalDate().toEpochDay();
+                long day = Instant.ofEpochSecond(ts.getLong(i)).atZone(zone).toLocalDate().toEpochDay();
                 double v = close.getDouble(i);
                 if (v > 0) into.put(day, v);
             }
@@ -170,7 +186,7 @@ public final class Net {
         double live = meta.optDouble("regularMarketPrice", 0);
         long liveTime = meta.optLong("regularMarketTime", 0);
         if (live > 0 && liveTime > 0) {
-            into.put(Instant.ofEpochSecond(liveTime).atZone(IST).toLocalDate().toEpochDay(), live);
+            into.put(Instant.ofEpochSecond(liveTime).atZone(zone).toLocalDate().toEpochDay(), live);
         }
         if (into.isEmpty()) throw new IOException("No prices for " + symbol);
         String name = meta.optString("longName", "");

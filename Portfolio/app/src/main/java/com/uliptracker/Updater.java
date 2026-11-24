@@ -20,7 +20,7 @@ public final class Updater {
     /** Download result for one symbol. */
     public static final class Result {
         public TreeMap<Long, Double> prices;
-        public String name, error, category;
+        public String name, error, category, currency;
     }
 
     /** Everything that can be updated online (or only `only`, on every platform holding it). */
@@ -52,7 +52,7 @@ public final class Updater {
                 int type = Integer.parseInt(e.getValue()[0]);
                 String code = e.getValue()[1];
                 if (type == Store.MF) { String[] m = Net.mfHistoryMeta(code, fresh); r.name = m[0]; r.category = m[1]; }
-                else r.name = Net.stockHistory(code, fresh);
+                else { Net.LAST_CCY.set(null); r.name = Net.stockHistory(code, fresh); r.currency = Net.LAST_CCY.get(); }
                 r.prices = fresh;
             } catch (Throwable ex) {
                 r.error = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
@@ -74,6 +74,7 @@ public final class Updater {
                 a.fetchedAt = System.currentTimeMillis();
                 a.error = null;
                 if (r.category != null && !r.category.isEmpty()) a.category = r.category;
+                if (r.currency != null && !r.currency.isEmpty()) a.currency = r.currency;
                 if (r.name != null && a.type == Store.STOCK && a.name.equals(a.code.replace(".NS", "").replace(".BO", "")))
                     a.name = r.name;
                 ok++;
