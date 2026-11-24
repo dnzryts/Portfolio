@@ -3,7 +3,7 @@
 Two Android apps, written in plain Java on the Android framework only (no AndroidX or other
 libraries). Each folder is an Android Studio project and also includes the APK built from it.
 
-## Portfolio (`Portfolio/`, package `com.uliptracker`, v8.4.4)
+## Portfolio (`Portfolio/`, package `com.uliptracker`, v8.5)
 
 | File | What it does |
 |---|---|
@@ -24,6 +24,7 @@ libraries). Each folder is an Android Studio project and also includes the APK b
 | `RollText.java` | Numbers that roll like an odometer when they change |
 | `TreemapView.java` | Heat-map of holdings (squarified treemap) |
 | `Avatars.java`, `Seasons.java` | Profile pictures for you and family members; festival and finance-day greetings |
+| `AppDialog.java` | Every pop-up in the app's style: rounded card, app fonts, pill buttons, filled text fields, rich menu rows |
 | `PullRefresh.java` | Pull down from the top of a page to refresh prices |
 | `WatchLink.java` | Phone ⇄ watch sync over Bluetooth (secure RFCOMM between the paired devices) |
 | `WatchActivity.java` | The Galaxy Watch app (built from the same sources as the `watch` module) |

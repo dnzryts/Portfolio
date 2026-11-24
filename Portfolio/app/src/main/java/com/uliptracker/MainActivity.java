@@ -461,7 +461,7 @@ public class MainActivity extends Activity {
         return Ui.LIGHT ? android.R.style.Theme_Material_Light_Dialog_Alert : android.R.style.Theme_Material_Dialog_Alert;
     }
 
-    private AlertDialog.Builder dialog() { return new AlertDialog.Builder(this, dialogTheme()); }
+    private AlertDialog.Builder dialog() { return new AppDialog(this); }
 
     private EditText numberField(String hint, String value) {
         EditText e = new EditText(this);
@@ -1036,7 +1036,8 @@ public class MainActivity extends Activity {
 
     private void marketsAddMenu() {
         dialog().setTitle("Add to Markets")
-                .setItems(new String[]{"Index (Nifty, Sensex, sectors…)", "Watch a stock or ETF", "Watch a mutual fund"},
+                .setItems(new String[]{"📊 Index\nNifty, Sensex, sectors…", "📈 Watch a stock or ETF\nFollow it without owning it",
+                                "🏦 Watch a mutual fund\nTrack its NAV and set alerts"},
                         new DialogInterface.OnClickListener() {
                             @Override public void onClick(DialogInterface d, int w) {
                                 if (w == 0) searchDialog(Store.INDEX, "Nifty ");
@@ -1047,7 +1048,7 @@ public class MainActivity extends Activity {
 
     private void watchAddMenu() {
         dialog().setTitle("Add to watchlist")
-                .setItems(new String[]{"Stock or ETF", "Mutual fund"}, new DialogInterface.OnClickListener() {
+                .setItems(new String[]{"📈 Stock or ETF\nNSE / BSE", "🏦 Mutual fund\nSBI or any AMC"}, new DialogInterface.OnClickListener() {
                     @Override public void onClick(DialogInterface d, int w) {
                         watchMode = true;
                         searchDialog(w == 0 ? Store.STOCK : Store.MF, w == 0 ? "" : "SBI ");
@@ -2117,8 +2118,11 @@ public class MainActivity extends Activity {
     // ================================================================== add / edit
     private void addMenu() {
         dialog().setTitle("Add investment")
-                .setItems(new String[]{"NSE / BSE stock or ETF", "Mutual fund (SBI or any AMC)", "SBI Life ULIP fund",
-                                "FD, RD, PPF, EPF, NPS, gold, property, cash…", "Loan (for net worth)"},
+                .setItems(new String[]{"📈 NSE / BSE stock or ETF\nShares and ETFs · prices update live",
+                                "🏦 Mutual fund\nSBI or any AMC · daily NAV",
+                                "🛡️ SBI Life ULIP fund\nYour ULIP funds and units",
+                                "💰 Other assets\nFD, RD, PPF, EPF, NPS, gold, property, cash…",
+                                "🏠 Loan\nHome, car, personal… for net worth"},
                         new DialogInterface.OnClickListener() {
                             @Override public void onClick(DialogInterface d, int which) {
                                 if (which == 0) searchDialog(Store.STOCK, "");
@@ -3514,8 +3518,10 @@ public class MainActivity extends Activity {
 
     private void addOtherMenu(final int type) {
         final String[] kinds = type == Store.LOAN ? Store.LOAN_KINDS : Store.OTHER_KINDS;
+        String[] shown = new String[kinds.length];
+        for (int i = 0; i < kinds.length; i++) shown[i] = kindIcon(kinds[i]) + " " + kinds[i];
         dialog().setTitle(type == Store.LOAN ? "Add a loan" : "Add other asset")
-                .setItems(kinds, new DialogInterface.OnClickListener() {
+                .setItems(shown, new DialogInterface.OnClickListener() {
                     @Override public void onClick(DialogInterface d, int w) { otherDialog(null, type, kinds[w]); }
                 }).show();
     }
@@ -3724,7 +3730,7 @@ public class MainActivity extends Activity {
         TextView add = Ui.text(this, "+ Add", 14, Ui.ACCENT, true);
         add.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
-                dialog().setItems(new String[]{"Other asset (FD, RD, PPF, gold, property…)", "Loan"}, new DialogInterface.OnClickListener() {
+                dialog().setTitle("Add to net worth").setItems(new String[]{"💰 Other asset\nFD, RD, PPF, gold, property…", "🏠 Loan\nWhat you owe"}, new DialogInterface.OnClickListener() {
                     @Override public void onClick(DialogInterface d, int w) { addOtherMenu(w == 0 ? Store.OTHER : Store.LOAN); }
                 }).show();
             }
@@ -4269,7 +4275,7 @@ public class MainActivity extends Activity {
         dialog().setTitle("Family members").setItems(owners.toArray(new String[0]), new DialogInterface.OnClickListener() {
             @Override public void onClick(DialogInterface d, int w) {
                 final String who = owners.get(w);
-                dialog().setTitle(who).setItems(new String[]{"Change picture", "Rename"}, new DialogInterface.OnClickListener() {
+                dialog().setTitle(who).setItems(new String[]{"🖼️ Change picture\nPhoto or emoji", "✏️ Rename"}, new DialogInterface.OnClickListener() {
                     @Override public void onClick(DialogInterface d1, int w1) { if (w1 == 0) avatarDialog(who); else renameOne(who); }
                 }).show();
             }
@@ -5793,5 +5799,25 @@ public class MainActivity extends Activity {
         p.addView(fresh, i, lp);
         View ch = fresh.findViewWithTag("chart");
         if (ch instanceof ChartView) ((ChartView) ch).play();
+    }
+
+
+    /** Icon for an other-asset or loan kind, used in menus. */
+    private static String kindIcon(String k) {
+        String l = k.toLowerCase(Locale.ROOT);
+        if (l.startsWith("fixed")) return "🏦";
+        if (l.startsWith("recurring")) return "🔁";
+        if (l.equals("ppf")) return "📗";
+        if (l.equals("epf")) return "🧾";
+        if (l.equals("nps")) return "🌅";
+        if (l.startsWith("gold")) return "🪙";
+        if (l.startsWith("real") || l.startsWith("home")) return "🏠";
+        if (l.startsWith("savings")) return "💵";
+        if (l.startsWith("bond")) return "📜";
+        if (l.startsWith("car")) return "🚗";
+        if (l.startsWith("personal")) return "👤";
+        if (l.startsWith("education")) return "🎓";
+        if (l.startsWith("credit")) return "💳";
+        return "📦";
     }
 }
