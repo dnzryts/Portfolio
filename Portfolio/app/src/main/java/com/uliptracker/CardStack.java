@@ -94,7 +94,7 @@ public class CardStack extends FrameLayout implements android.hardware.SensorEve
             v.setPivotX(getWidth() > 0 ? getWidth() / 2f : v.getWidth() / 2f);
             if (animate) {
                 v.animate().translationY(ty).scaleX(sc).scaleY(sc).alpha(al).rotation(0).setDuration(320)
-                        .setInterpolator(new DecelerateInterpolator(1.8f)).start();
+                        .setInterpolator(new DecelerateInterpolator(1.8f)).setUpdateListener(redraw).start();
             } else {
                 v.animate().cancel();
                 v.setTranslationY(ty); v.setScaleX(sc); v.setScaleY(sc); v.setAlpha(al); v.setRotation(0);
@@ -105,6 +105,10 @@ public class CardStack extends FrameLayout implements android.hardware.SensorEve
     }
 
     private View front() { return cards.isEmpty() ? null : cards.get(index); }
+
+    private final android.animation.ValueAnimator.AnimatorUpdateListener redraw = new android.animation.ValueAnimator.AnimatorUpdateListener() {
+        @Override public void onAnimationUpdate(android.animation.ValueAnimator a) { invalidate(); }
+    };
 
     @Override
     public boolean onInterceptTouchEvent(MotionEvent e) {
@@ -182,6 +186,7 @@ public class CardStack extends FrameLayout implements android.hardware.SensorEve
         if (incoming != null) incoming.setTranslationY((-cardH - 8 * dp) * (1 - p));
         int n = cards.size();
         for (int k = 0; k <= PEEK && k < n - 1; k++) place(cards.get((index + k) % n), k + p);
+        invalidate();    // moving a card doesn't redraw the stack, so the clip below would stay where the card was
     }
 
     /** Upward drag: the mirror of a downward one. The front card slides up and away; the others move forward one slot. */
@@ -211,6 +216,7 @@ public class CardStack extends FrameLayout implements android.hardware.SensorEve
         }
         int n = cards.size();
         for (int k = 1; k <= PEEK + 1 && k < n; k++) place(cards.get((index + k) % n), k - p);
+        invalidate();
     }
 
     /** Finish (or undo) an upward drag, with the same easing as a downward one. */
