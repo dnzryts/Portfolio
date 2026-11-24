@@ -125,7 +125,7 @@ public class CardStack extends FrameLayout implements android.hardware.SensorEve
                     if (dy > dx * 1.2f) {
                         dragging = true;
                         dragDir = e.getY() > downY ? 1 : -1;
-                        if (dragDir > 0) prepareIncoming();
+                        if (dragDir > 0) prepareIncoming(); else prepareOutgoing();
                         return true;
                     }
                     getParent().requestDisallowInterceptTouchEvent(false);    // horizontal: let the pager have it
@@ -150,20 +150,92 @@ public class CardStack extends FrameLayout implements android.hardware.SensorEve
         incoming.setAlpha(1f);
         incoming.setTranslationY(-cardH - 8 * dp);
         incoming.setLayerType(LAYER_TYPE_HARDWARE, null);
-        View f = front();
-        if (f != null) f.setLayerType(LAYER_TYPE_HARDWARE, null);
+        for (int k = 0; k <= PEEK && k < n - 1; k++) {
+            View v = cards.get((index + k) % n);
+            v.animate().cancel();
+            v.setLayerType(LAYER_TYPE_HARDWARE, null);
+        }
     }
 
-    /** Downward drag progress p (0..1): incoming slides down, front card eases back into slot 1. */
+    /** Opacity of a card at a (fractional) slot: front 1, then 0.85, 0.6, then hidden. */
+    private static float slotAlpha(float s) {
+        float[] a = {1f, 0.85f, 0.6f, 0f};
+        if (s <= 0) return 1f;
+        if (s >= a.length - 1) return 0f;
+        int i = (int) Math.floor(s);
+        float f = s - i;
+        return a[i] + (a[i + 1] - a[i]) * f;
+    }
+
+    /** Puts a card at a fractional slot (0 = front). */
+    private void place(View v, float s) {
+        float c = Math.max(0, Math.min(PEEK, s));
+        v.setTranslationY(c * 10 * dp);
+        v.setScaleX(1 - 0.05f * c); v.setScaleY(1 - 0.05f * c);
+        v.setAlpha(slotAlpha(s));
+        v.setRotation(0);
+    }
+
+    /** Downward drag progress p (0..1): incoming slides down from above, every other card moves back one slot. */
     private void placeDown(float p) {
         p = Math.max(0, Math.min(1, p));
         if (incoming != null) incoming.setTranslationY((-cardH - 8 * dp) * (1 - p));
-        View f = front();
-        if (f != null) {
-            f.setTranslationY(10 * dp * p);
-            f.setScaleX(1 - 0.05f * p); f.setScaleY(1 - 0.05f * p);
-            f.setAlpha(1 - 0.15f * p);
+        int n = cards.size();
+        for (int k = 0; k <= PEEK && k < n - 1; k++) place(cards.get((index + k) % n), k + p);
+    }
+
+    /** Upward drag: the mirror of a downward one. The front card slides up and away; the others move forward one slot. */
+    private View outgoing;
+
+    private void prepareOutgoing() {
+        int n = cards.size();
+        outgoing = front();
+        if (outgoing == null) return;
+        outgoing.animate().cancel();
+        outgoing.setRotation(0);
+        outgoing.setAlpha(1f);
+        outgoing.setLayerType(LAYER_TYPE_HARDWARE, null);
+        for (int k = 1; k <= PEEK + 1 && k < n; k++) {
+            View v = cards.get((index + k) % n);
+            v.animate().cancel();
+            v.setLayerType(LAYER_TYPE_HARDWARE, null);
         }
+    }
+
+    private void placeUp(float p) {
+        p = Math.max(0, Math.min(1, p));
+        if (outgoing != null) {
+            outgoing.setTranslationY((-cardH - 8 * dp) * p);
+            outgoing.setScaleX(1f); outgoing.setScaleY(1f);
+            outgoing.setAlpha(1f);
+        }
+        int n = cards.size();
+        for (int k = 1; k <= PEEK + 1 && k < n; k++) place(cards.get((index + k) % n), k - p);
+    }
+
+    /** Finish (or undo) an upward drag, with the same easing as a downward one. */
+    private void settleUp(float from, final boolean commit, float vy) {
+        animating = true;
+        float to = commit ? 1f : 0f;
+        float dist = Math.abs(to - from) * (cardH + 8 * dp);
+        long dur = (long) Math.max(160, Math.min(320, Math.abs(vy) > 1 ? dist / Math.abs(vy) * 1000 * 2.4f : dist / (cardH + 8 * dp) * 320));
+        android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(from, to);
+        va.setDuration(dur);
+        va.setInterpolator(new android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f));
+        va.addUpdateListener(new android.animation.ValueAnimator.AnimatorUpdateListener() {
+            @Override public void onAnimationUpdate(android.animation.ValueAnimator a) { placeUp((Float) a.getAnimatedValue()); }
+        });
+        va.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(android.animation.Animator a) {
+                for (View v : cards) v.setLayerType(LAYER_TYPE_NONE, null);
+                if (commit) index = (index + 1) % cards.size();
+                outgoing = null;
+                arrangeQuiet();
+                animating = false;
+                if (commit && listener != null) listener.onChanged(index);
+            }
+        });
+        va.start();
     }
 
     @Override
@@ -176,11 +248,7 @@ public class CardStack extends FrameLayout implements android.hardware.SensorEve
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_MOVE:
                 if (dragDir < 0) {
-                    if (f != null) {
-                        float t = Math.min(0, dy);        // only upward
-                        f.setTranslationY(t);
-                        f.setRotation(t / cardH * -4f);
-                    }
+                    placeUp(-dy / (cardH + 8 * dp));
                 } else {
                     placeDown(dy / (cardH + 8 * dp));
                 }
@@ -193,8 +261,9 @@ public class CardStack extends FrameLayout implements android.hardware.SensorEve
                 getParent().requestDisallowInterceptTouchEvent(false);
                 boolean upOk = e.getActionMasked() == MotionEvent.ACTION_UP;
                 if (dragDir < 0) {
-                    if (upOk && (dy < -cardH * 0.25f || (vy < -minFling && dy < -slop))) next();
-                    else arrange(true);
+                    float p = Math.max(0, Math.min(1, -dy / (cardH + 8 * dp)));
+                    boolean commit = upOk && (p > 0.3f || (vy < -minFling && dy < -slop));
+                    settleUp(p, commit, vy);
                 } else {
                     float p = Math.max(0, Math.min(1, dy / (cardH + 8 * dp)));
                     boolean commit = upOk && (p > 0.3f || (vy > minFling && dy > slop));
@@ -220,9 +289,7 @@ public class CardStack extends FrameLayout implements android.hardware.SensorEve
         });
         va.addListener(new android.animation.AnimatorListenerAdapter() {
             @Override public void onAnimationEnd(android.animation.Animator a) {
-                View f = front();
-                if (f != null) f.setLayerType(LAYER_TYPE_NONE, null);
-                if (incoming != null) incoming.setLayerType(LAYER_TYPE_NONE, null);
+                for (View v : cards) v.setLayerType(LAYER_TYPE_NONE, null);
                 if (commit) index = (index - 1 + cards.size()) % cards.size();
                 incoming = null;
                 arrangeQuiet();
@@ -250,23 +317,11 @@ public class CardStack extends FrameLayout implements android.hardware.SensorEve
         invalidate();
     }
 
-    /** Front card flies up, then tucks in at the back. */
+    /** The front card slides up and away; the next one comes forward. */
     public void next() {
         if (cards.size() < 2 || animating) return;
-        final View f = front();
-        animating = true;
-        f.animate().translationY(-cardH * 0.9f).rotation(-5).alpha(0f).setDuration(200)
-                .setInterpolator(new DecelerateInterpolator()).withEndAction(new Runnable() {
-                    @Override public void run() {
-                        index = (index + 1) % cards.size();
-                        f.setTranslationY(PEEK * 10 * dp + 20 * dp);
-                        f.setRotation(0);
-                        arrange(true);
-                        animating = false;
-                        if (listener != null) listener.onChanged(index);
-                    }
-                }).start();
-        nudgeOthers(-1);
+        prepareOutgoing();
+        settleUp(0f, true, 0f);
     }
 
     /** The previous card slides in from above onto the front. */
@@ -274,18 +329,6 @@ public class CardStack extends FrameLayout implements android.hardware.SensorEve
         if (cards.size() < 2 || animating) return;
         prepareIncoming();
         settleDown(0f, true, 0f);
-    }
-
-    /** Cards behind move up one slot while the front leaves. */
-    private void nudgeOthers(int dir) {
-        int n = cards.size();
-        for (int k = 1; k < n && k <= PEEK + 1; k++) {
-            View v = cards.get((index + k) % n);
-            int s = k + dir;
-            float ty = Math.max(0, Math.min(PEEK, s)) * 10 * dp;
-            float sc = 1f - Math.max(0, Math.min(PEEK, s)) * 0.05f;
-            v.animate().translationY(ty).scaleX(sc).scaleY(sc).alpha(s <= 0 ? 1f : 0.85f).setDuration(220).start();
-        }
     }
 
     private final android.graphics.Path clipPath = new android.graphics.Path();
