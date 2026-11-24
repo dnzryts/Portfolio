@@ -93,13 +93,15 @@ P.ATTR_IDS.update({"drawable": 0x01010199, "roundIcon": 0x0101052C})
 
 
 manifest = E("manifest", [(None, "package", T_STR, P.PKG),
-                          ("a", "versionCode", T_INT, 21), ("a", "versionName", T_STR, "8.2")], [
+                          ("a", "versionCode", T_INT, 22), ("a", "versionName", T_STR, "8.3")], [
     E("uses-sdk", [("a", "minSdkVersion", T_INT, 26), ("a", "targetSdkVersion", T_INT, 34)]),
     E("uses-permission", [("a", "name", T_STR, "android.permission.INTERNET")]),
     E("uses-permission", [("a", "name", T_STR, "android.permission.ACCESS_NETWORK_STATE")]),
     E("uses-permission", [("a", "name", T_STR, "android.permission.USE_BIOMETRIC")]),
     E("uses-permission", [("a", "name", T_STR, "android.permission.POST_NOTIFICATIONS")]),
     E("uses-permission", [("a", "name", T_STR, "android.permission.RECEIVE_BOOT_COMPLETED")]),
+    E("uses-permission", [("a", "name", T_STR, "android.permission.BLUETOOTH")]),
+    E("uses-permission", [("a", "name", T_STR, "android.permission.BLUETOOTH_CONNECT")]),
     E("application", [("a", "theme", T_REF, 0x0103022E),  # Theme.Material.NoActionBar
                       ("a", "label", T_STR, "Portfolio"), ("a", "icon", T_REF, LAUNCHER), ("a", "roundIcon", T_REF, LAUNCHER)], [
         E("activity", [("a", "name", T_STR, P.PKG + ".MainActivity"), ("a", "exported", T_BOOL, True),

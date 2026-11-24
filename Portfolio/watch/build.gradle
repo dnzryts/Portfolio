@@ -1,0 +1,15 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'com.uliptracker.watch'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'com.uliptracker.watch'
+        minSdk 30
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+    // The watch app reuses the phone app's classes (Store, Updater, Net, WatchLink, WatchActivity…).
+    sourceSets { main { java.srcDirs = ['../app/src/main/java'] } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
+}

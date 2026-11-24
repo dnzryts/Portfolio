@@ -201,6 +201,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        startWatchSync(false);
         if (authInProgress) return;                    // returning from the system PIN screen
         if (Alerts.schedule(this) != null && Alerts.enabled(this)) Alerts.prefs(this).edit().putBoolean("alerts", false).apply();
         if (Lock.enabled(this) && (locked || stoppedAt == 0 || System.currentTimeMillis() - stoppedAt > 30_000L)) {
@@ -216,6 +217,12 @@ public class MainActivity extends Activity {
             render(false);
         }
         if (System.currentTimeMillis() - store.refreshedAt > 15 * 60 * 1000L) refresh(null, true);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        watchServer.stop();
     }
 
     @Override
@@ -1153,6 +1160,9 @@ public class MainActivity extends Activity {
             @Override public void on(int i) { Alerts.prefs(MainActivity.this).edit().putInt("cardOpacity", ops[i]).apply(); render(false); }
         }, true));
         add(col, ap, idx++, animate);
+        add(col, Ui.text(this, "Galaxy Watch", 13, Ui.SUB, true), idx++, animate);
+        col.addView(Ui.space(this, 6));
+        add(col, watchCard(), idx++, animate);
         add(col, Ui.text(this, "Security & alerts", 13, Ui.SUB, true), idx++, animate);
         col.addView(Ui.space(this, 6));
         add(col, settingsCard(), idx++, animate);
@@ -5374,5 +5384,153 @@ public class MainActivity extends Activity {
             return false;
         }
         return false;
+    }
+
+
+    // ================================================================== Galaxy Watch sync
+    private static final int REQ_BT = 78;
+    private final WatchLink.Server watchServer = new WatchLink.Server();
+
+    private boolean btAllowed() {
+        return android.os.Build.VERSION.SDK_INT < 31
+                || checkSelfPermission("android.permission.BLUETOOTH_CONNECT") == android.content.pm.PackageManager.PERMISSION_GRANTED;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int code, String[] perms, int[] res) {
+        super.onRequestPermissionsResult(code, perms, res);
+        if (code != REQ_BT) return;
+        if (res.length > 0 && res[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) startWatchSync(true);
+        else toast("Bluetooth permission is needed to sync with your watch");
+        render(false);
+    }
+
+    /** Listen for the watch while the app is open (only when turned on). */
+    private void startWatchSync(boolean ask) {
+        if (!Alerts.prefs(this).getBoolean("watch_sync", false)) { watchServer.stop(); return; }
+        if (!btAllowed()) {
+            if (ask) requestPermissions(new String[]{"android.permission.BLUETOOTH_CONNECT"}, REQ_BT);
+            return;
+        }
+        android.bluetooth.BluetoothManager bm = (android.bluetooth.BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        final android.bluetooth.BluetoothAdapter ad = bm == null ? null : bm.getAdapter();
+        if (ad == null || !ad.isEnabled()) { if (ask) toast("Turn on Bluetooth to sync with your watch"); return; }
+        try {
+            watchServer.start(ad, new WatchLink.Phone() {
+                @Override public boolean allow(final android.bluetooth.BluetoothDevice d) {
+                    if (locked || hiddenForRecents) throw new IllegalStateException("locked");
+                    final String addr = d.getAddress();
+                    if (Alerts.prefs(MainActivity.this).getStringSet("watch_allowed", new java.util.HashSet<String>()).contains(addr)) return true;
+                    final boolean[] ok = {false};
+                    final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+                    ui.post(new Runnable() {
+                        @Override public void run() {
+                            String n = null;
+                            try { n = d.getName(); } catch (Throwable ignored) { }
+                            dialog().setTitle("Allow your watch?")
+                                    .setMessage((n == null ? "A paired device" : n) + " wants to get your portfolio over Bluetooth. Allow it now and in future?")
+                                    .setPositiveButton("Allow", new DialogInterface.OnClickListener() {
+                                        @Override public void onClick(DialogInterface di, int w) {
+                                            java.util.Set<String> set = new java.util.HashSet<>(Alerts.prefs(MainActivity.this)
+                                                    .getStringSet("watch_allowed", new java.util.HashSet<String>()));
+                                            set.add(addr);
+                                            Alerts.prefs(MainActivity.this).edit().putStringSet("watch_allowed", set).apply();
+                                            ok[0] = true;
+                                            done.countDown();
+                                        }
+                                    })
+                                    .setNegativeButton("Don't allow", new DialogInterface.OnClickListener() {
+                                        @Override public void onClick(DialogInterface di, int w) { done.countDown(); }
+                                    })
+                                    .setOnDismissListener(new DialogInterface.OnDismissListener() {
+                                        @Override public void onDismiss(DialogInterface di) { done.countDown(); }
+                                    }).show();
+                        }
+                    });
+                    try { done.await(60, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException ignored) { }
+                    return ok[0];
+                }
+
+                @Override public byte[] payload() throws Exception {
+                    final Object[] r = new Object[1];
+                    final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+                    ui.post(new Runnable() {
+                        @Override public void run() {
+                            try {
+                                JSONObject o = WatchLink.trimmed(store.toJson(), 10);
+                                JSONObject meta = new JSONObject();
+                                meta.put("name", userName());
+                                meta.put("hide", Alerts.prefs(MainActivity.this).getBoolean("watch_hide", false));
+                                meta.put("sentAt", System.currentTimeMillis());
+                                o.put("watch", meta);
+                                r[0] = WatchLink.gzip(o.toString());
+                            } catch (Exception e) { r[0] = e; }
+                            done.countDown();
+                        }
+                    });
+                    done.await(20, java.util.concurrent.TimeUnit.SECONDS);
+                    if (r[0] instanceof Exception) throw (Exception) r[0];
+                    if (r[0] == null) throw new java.io.IOException("timeout");
+                    return (byte[]) r[0];
+                }
+
+                @Override public void sent(android.bluetooth.BluetoothDevice d, int bytes) {
+                    ui.post(new Runnable() {
+                        @Override public void run() {
+                            Alerts.prefs(MainActivity.this).edit().putLong("watch_last", System.currentTimeMillis()).apply();
+                            toast("Portfolio sent to your watch");
+                            if (tab == TABS.length - 1 && screen == 0) render(false);
+                        }
+                    });
+                }
+            });
+        } catch (Throwable t) {
+            if (ask) toast("Couldn't start watch sync: " + t.getMessage());
+        }
+    }
+
+    private View watchCard() {
+        LinearLayout c = Ui.card(this);
+        c.setPadding(0, (int) (4 * dp), 0, (int) (4 * dp));
+        c.addView(switchRow("Sync with watch", "While this app is open, the Portfolio app on your Galaxy Watch can fetch your holdings and profile over Bluetooth",
+                Alerts.prefs(this).getBoolean("watch_sync", false), true, new Toggle() {
+                    @Override public void set(boolean on) {
+                        Alerts.prefs(MainActivity.this).edit().putBoolean("watch_sync", on).apply();
+                        if (on) startWatchSync(true); else watchServer.stop();
+                        ui.post(new Runnable() { @Override public void run() { render(false); } });
+                    }
+                }));
+        c.addView(divider());
+        c.addView(switchRow("Hide amounts on watch", "The watch opens with ₹ values hidden; tap the total to show them",
+                Alerts.prefs(this).getBoolean("watch_hide", false), true, new Toggle() {
+                    @Override public void set(boolean on) { Alerts.prefs(MainActivity.this).edit().putBoolean("watch_hide", on).apply(); }
+                }));
+        LinearLayout info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.VERTICAL);
+        info.setPadding((int) (16 * dp), (int) (8 * dp), (int) (16 * dp), (int) (10 * dp));
+        long last = Alerts.prefs(this).getLong("watch_last", 0);
+        boolean on = Alerts.prefs(this).getBoolean("watch_sync", false);
+        info.addView(Ui.text(this, !on ? "Off" : watchServer.running() ? "Ready: open Portfolio on your watch and tap Sync."
+                : "Waiting for Bluetooth permission or Bluetooth to be on.", 12, on && watchServer.running() ? Ui.GREEN : Ui.SUB, false));
+        if (last > 0) info.addView(Ui.text(this, "Last sent " + java.time.Instant.ofEpochMilli(last).atZone(java.time.ZoneId.systemDefault())
+                .format(java.time.format.DateTimeFormatter.ofPattern("d MMM, HH:mm", Locale.US)), 12, Ui.SUB, false));
+        final java.util.Set<String> allowed = Alerts.prefs(this).getStringSet("watch_allowed", new java.util.HashSet<String>());
+        if (!allowed.isEmpty()) {
+            TextView f = Ui.text(this, "Forget allowed watches (" + allowed.size() + ")", 13, Ui.ACCENT, true);
+            f.setPadding(0, (int) (8 * dp), 0, 0);
+            f.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    Alerts.prefs(MainActivity.this).edit().remove("watch_allowed").apply();
+                    toast("The watch will need to be allowed again");
+                    render(false);
+                }
+            });
+            info.addView(f);
+        }
+        info.addView(Ui.space(this, 4));
+        info.addView(Ui.text(this, "The watch gets your holdings, family profiles and name, then refreshes prices on its own. "
+                + "Sync again after you add or change holdings. Nothing goes through the internet.", 11, Ui.HINT, false));
+        c.addView(info);
+        return c;
     }
 }
