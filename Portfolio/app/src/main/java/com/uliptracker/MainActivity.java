@@ -439,7 +439,16 @@ public class MainActivity extends Activity {
         if (offscreen) { built = scroller; return col; }
         content.removeAllViews();
         content.addView(scroller);
-        if (y > 0) scroller.post(new Runnable() { @Override public void run() { scroller.scrollTo(0, y); } });
+        if (y > 0) {
+            final ScrollView sv = scroller;
+            sv.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+                @Override public boolean onPreDraw() {
+                    sv.getViewTreeObserver().removeOnPreDrawListener(this);
+                    sv.scrollTo(0, y);      // after layout, before the first draw
+                    return true;
+                }
+            });
+        }
         return col;
     }
 
@@ -1517,13 +1526,14 @@ public class MainActivity extends Activity {
 
     private View performanceCard(final List<Store.Asset> scope, boolean animate) {
         LinearLayout c = Ui.card(this);
+        final View[] self = {c};
         LinearLayout head = Ui.row(this);
         head.addView(Ui.text(this, "Performance", 16, Ui.TEXT, true), Ui.weight(1));
         c.addView(head);
         c.addView(Ui.space(this, 8));
         HorizontalScrollView hs = new HorizontalScrollView(this);
         hs.setHorizontalScrollBarEnabled(false);
-        hs.addView(chips(MODES, chartMode, new Pick() { @Override public void on(int i) { chartMode = i; render(false); playCharts(); } }, false));
+        hs.addView(chips(MODES, chartMode, new Pick() { @Override public void on(int i) { chartMode = i; refreshCard(self[0], performanceCard(scope, false)); } }, false));
         c.addView(hs);
         c.addView(Ui.space(this, 8));
 
@@ -1560,7 +1570,7 @@ public class MainActivity extends Activity {
         }
         c.addView(ch, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (230 * dp)));
         c.addView(Ui.space(this, 6));
-        c.addView(chips(RANGES, range, new Pick() { @Override public void on(int i) { range = i; render(false); playCharts(); } }, true));
+        c.addView(chips(RANGES, range, new Pick() { @Override public void on(int i) { range = i; refreshCard(self[0], performanceCard(scope, false)); } }, true));
         if (hist.isEmpty() && chartMode != 2) {
             c.addView(Ui.text(this, "Chart appears once your holdings have units and prices.", 12, Ui.SUB, false));
         }
@@ -1581,11 +1591,12 @@ public class MainActivity extends Activity {
         double total = Store.value(scope);
         if (total <= 0) return null;
         LinearLayout c = Ui.card(this);
+        final View[] self = {c};
         LinearLayout head = Ui.row(this);
         head.addView(Ui.text(this, "Allocation", 16, Ui.TEXT, true), Ui.weight(1));
         if (all()) {
             head.addView(chips(new String[]{"By type", "By platform"}, groupBy, new Pick() {
-                @Override public void on(int i) { groupBy = i; render(true); }
+                @Override public void on(int i) { groupBy = i; View n = allocationCard(scope); if (n != null) refreshCard(self[0], n); }
             }, false));
         }
         c.addView(head);
@@ -5662,16 +5673,24 @@ public class MainActivity extends Activity {
         }
         if (items.size() < 2) return null;
         LinearLayout c = Ui.card(this);
+        final View[] self = {c};
+        final List<Store.Asset> fscope = scope;
         LinearLayout t = Ui.row(this);
         t.addView(Ui.text(this, "Heat-map", 16, Ui.TEXT, true), Ui.weight(1));
         t.addView(Ui.text(this, "size = value", 11, Ui.SUB, false));
         c.addView(t);
         c.addView(Ui.space(this, 8));
         c.addView(chips(new String[]{"Today", "1 month", "1 year"}, heatRange, new Pick() {
-            @Override public void on(int i) { if (i != heatRange) { heatRange = i; render(false); } }
+            @Override public void on(int i) {
+                if (i == heatRange) return;
+                heatRange = i;
+                View n = heatmapCard(fscope, false);
+                if (n != null) { refreshCard(self[0], n); TreemapView t2 = (TreemapView) n.findViewWithTag("treemap"); if (t2 != null) t2.play(); }
+            }
         }, false));
         c.addView(Ui.space(this, 10));
         TreemapView tv = new TreemapView(this);
+        tv.setTag("treemap");
         tv.setItems(items, heatRange == 0 ? 3 : heatRange == 1 ? 10 : 30);
         tv.setListener(new TreemapView.Listener() {
             @Override public void onTap(TreemapView.Item it) { current = (Store.Asset) it.tag; screen = 1; render(true); }
@@ -5761,5 +5780,18 @@ public class MainActivity extends Activity {
                     }
                 }));
         return c;
+    }
+
+
+    /** Swaps one card for a freshly built one in place, so the rest of the page doesn't rebuild or jump. */
+    private void refreshCard(View old, View fresh) {
+        if (old == null || fresh == null || !(old.getParent() instanceof ViewGroup)) { render(false); return; }
+        ViewGroup p = (ViewGroup) old.getParent();
+        int i = p.indexOfChild(old);
+        ViewGroup.LayoutParams lp = old.getLayoutParams();
+        p.removeViewAt(i);
+        p.addView(fresh, i, lp);
+        View ch = fresh.findViewWithTag("chart");
+        if (ch instanceof ChartView) ((ChartView) ch).play();
     }
 }
