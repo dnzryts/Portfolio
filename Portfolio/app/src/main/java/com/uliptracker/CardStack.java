@@ -19,7 +19,10 @@ import java.util.List;
  * Swipe up: the front card flies up and goes to the back. Swipe down: the previous card drops in on top.
  * Horizontal swipes are left to the page (tab switching); taps go to the front card.
  */
-public class CardStack extends FrameLayout {
+public class CardStack extends FrameLayout implements android.hardware.SensorEventListener {
+
+    /** Tilt the stack with the phone (set from settings). */
+    public static boolean TILT = true;
 
     public interface Listener { void onChanged(int index); }
 
@@ -311,10 +314,87 @@ public class CardStack extends FrameLayout {
         return res;
     }
 
+    // ------------------------------------------------------------------ tilt with the phone
+    private android.hardware.SensorManager sensors;
+    private float baseX = Float.NaN, baseY, rotX, rotY;
+    private final Paint sheen = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final android.graphics.Path sheenPath = new android.graphics.Path();
+
+    private void listen(boolean on) {
+        if (on && TILT && sensors == null) {
+            sensors = (android.hardware.SensorManager) getContext().getSystemService(Context.SENSOR_SERVICE);
+            if (sensors == null) return;
+            android.hardware.Sensor g = sensors.getDefaultSensor(android.hardware.Sensor.TYPE_GRAVITY);
+            if (g == null) g = sensors.getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER);
+            if (g == null) { sensors = null; return; }
+            sensors.registerListener(this, g, android.hardware.SensorManager.SENSOR_DELAY_UI);
+            setCameraDistance(9000 * dp);
+        } else if (!on && sensors != null) {
+            sensors.unregisterListener(this);
+            sensors = null;
+            baseX = Float.NaN;
+        }
+    }
+
+    @Override
+    protected void onAttachedToWindow() { super.onAttachedToWindow(); listen(getWindowVisibility() == VISIBLE); }
+
+    @Override
+    protected void onDetachedFromWindow() { super.onDetachedFromWindow(); listen(false); }
+
+    /** Stop the sensor while the app is in the background. */
+    @Override
+    protected void onWindowVisibilityChanged(int v) { super.onWindowVisibilityChanged(v); listen(v == VISIBLE && isAttachedToWindow()); }
+
+    @Override
+    public void onSensorChanged(android.hardware.SensorEvent e) {
+        float gx = e.values[0], gy = e.values[1];
+        if (Float.isNaN(baseX)) { baseX = gx; baseY = gy; }
+        // the resting angle follows slowly, so only fresh tilts move the cards
+        baseX += (gx - baseX) * 0.015f;
+        baseY += (gy - baseY) * 0.015f;
+        float ty = Math.max(-6f, Math.min(6f, (gx - baseX) * -1.6f));
+        float tx = Math.max(-6f, Math.min(6f, (gy - baseY) * 1.4f));
+        rotX += (tx - rotX) * 0.18f;
+        rotY += (ty - rotY) * 0.18f;
+        if (dragging || animating) return;
+        setPivotX(getWidth() / 2f);
+        setPivotY(cardH / 2f);
+        setRotationX(rotX);
+        setRotationY(rotY);
+        invalidate();
+    }
+
+    @Override
+    public void onAccuracyChanged(android.hardware.Sensor s, int a) { }
+
+    /** Moving highlight over the front card, following the tilt. */
+    private void drawSheen(Canvas c) {
+        if (!TILT || sensors == null || cards.isEmpty()) return;
+        View f = cards.get(index);
+        if (f.getParent() != this || f.getAlpha() < 0.9f || f.getVisibility() != VISIBLE) return;
+        float w = f.getWidth(), h = f.getHeight(), r = 24 * dp;
+        float pos = 0.5f + rotY / 12f + rotX / 18f;          // 0..1 across the card
+        float cx = w * pos, band = w * 0.45f;
+        int a = (int) (0x30 * Math.min(1f, 0.35f + (Math.abs(rotX) + Math.abs(rotY)) / 6f));
+        sheen.setShader(new android.graphics.LinearGradient(cx - band, 0, cx + band, h,
+                new int[]{0, (a << 24) | 0xFFFFFF, 0}, new float[]{0, 0.5f, 1}, android.graphics.Shader.TileMode.CLAMP));
+        sheenPath.reset();
+        sheenPath.addRoundRect(0, 0, w, h, r, r, android.graphics.Path.Direction.CW);
+        sheenPath.transform(f.getMatrix());
+        sheenPath.offset(f.getLeft(), f.getTop());
+        c.save();
+        c.clipPath(sheenPath);
+        c.translate(f.getLeft() + f.getTranslationX(), f.getTop() + f.getTranslationY());
+        c.drawRect(0, 0, w, h, sheen);
+        c.restore();
+    }
+
     /** Position dots on the right edge. */
     @Override
     protected void dispatchDraw(Canvas c) {
         super.dispatchDraw(c);
+        drawSheen(c);
         int n = cards.size();
         if (n < 2) return;
         float r = 3 * dp, gap = 9 * dp;

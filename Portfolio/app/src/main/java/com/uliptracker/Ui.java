@@ -48,11 +48,18 @@ public final class Ui {
             HERO1 = 0xFF23304A; HERO2 = 0xFF1A1F2B; HERO_SUB = 0xFFB8C4DA;
             TYPE_COLORS = new int[]{0xFFB39DFF, 0xFF7FB2FF, 0xFFFFC56B, 0xFF5ED4E0, 0xFF4CD787, 0xFFFF6B6B};
             PALETTE = new int[]{0xFF7FB2FF, 0xFFB39DFF, 0xFFFFC56B, 0xFF4CD787, 0xFFFF8FA3, 0xFF5ED4E0, 0xFFF4A261, 0xFF9AA0A6};
+            if (Alerts.prefs(c).getBoolean("amoled", false)) {     // pure black for AMOLED screens
+                BG = 0xFF000000; CARD = 0xFF0F1013; CARD2 = 0xFF1A1C21; NAV = 0xFF000000;
+                HERO1 = 0xFF15203A; HERO2 = 0xFF0B0D12; TIP = 0xEE1E222A;
+            }
         }
         return LIGHT;
     }
 
     private static final Locale IN = new Locale("en", "IN");
+
+    /** While true, new cards get a frosted-glass background (set while the Dashboard is built). */
+    public static boolean GLASS = false;
 
     private Ui() { }
 
@@ -93,15 +100,26 @@ public final class Ui {
         return t;
     }
 
+    /** Same look as text(), for a TextView made elsewhere (e.g. RollText). */
+    public static void style(TextView t, float sp, int color, boolean bold) {
+        t.setTextSize(sp);
+        t.setTextColor(color);
+        if (bold) t.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+    }
+
     public static LinearLayout card(Context c) {
         float d = dp(c);
         LinearLayout l = new LinearLayout(c);
         l.setOrientation(LinearLayout.VERTICAL);
         l.setPadding((int) (16 * d), (int) (14 * d), (int) (16 * d), (int) (14 * d));
-        GradientDrawable g = new GradientDrawable();
-        g.setColor(CARD);
-        g.setCornerRadius(18 * d);
-        l.setBackground(g);
+        if (GLASS) {
+            l.setBackground(new Fx.Glass(new int[]{(CARD & 0x00FFFFFF) | (LIGHT ? 0xC8000000 : 0xB0000000)}, 18 * d, d, false));
+        } else {
+            GradientDrawable g = new GradientDrawable();
+            g.setColor(CARD);
+            g.setCornerRadius(18 * d);
+            l.setBackground(g);
+        }
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         lp.setMargins(0, 0, 0, (int) (12 * d));

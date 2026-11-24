@@ -98,6 +98,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle b) {
         Crash.install(this);
         boolean light = Ui.applyTheme(this);
+        CardStack.TILT = Alerts.prefs(this).getBoolean("tilt", true);
         setTheme(light ? android.R.style.Theme_Material_Light_NoActionBar : android.R.style.Theme_Material_NoActionBar);
         super.onCreate(b);
         dp = Ui.dp(this);
@@ -159,7 +160,9 @@ public class MainActivity extends Activity {
         if (b == null && !Alerts.prefs(this).getBoolean("name_asked", false)) welcome(shell);
         if (b == null && Alerts.prefs(this).getBoolean("intro", true)) {
             IntroView iv = new IntroView(this);
-            if (!userName().isEmpty()) iv.setGreeting("Welcome back, " + userName());
+            String fest = Seasons.greeting(LocalDate.now());
+            if (fest != null) iv.setGreeting(Seasons.withName(fest, userName()));
+            else if (!userName().isEmpty()) iv.setGreeting("Welcome back, " + userName());
             shell.addView(iv, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             iv.play(shell);
         }
@@ -638,10 +641,22 @@ public class MainActivity extends Activity {
     private final Runnable addAction = new Runnable() { @Override public void run() { addMenu(); } };
 
     // ================================================================== Dashboard tab
+    private boolean moodOn() { return Alerts.prefs(this).getBoolean("mood", true); }
+
     private void showDashboard(boolean animate) {
         LinearLayout col = page(!animate);
         int idx = 0;
         List<Store.Asset> scope = store.visible(-1);
+        boolean mood = moodOn();
+        if (mood) {
+            double tv = Store.value(scope), td = Store.lastChange(scope);
+            scroller.setBackground(new Fx.Mood(tv - td > 0 ? td / (tv - td) * 100 : 0));
+        }
+        Ui.GLASS = mood;
+        try { buildDashboard(col, scope, animate, idx); } finally { Ui.GLASS = false; }
+    }
+
+    private void buildDashboard(LinearLayout col, List<Store.Asset> scope, boolean animate, int idx) {
         View gr = greetingRow();
         if (gr != null) add(col, gr, idx++, animate);
         add(col, header("Dashboard", true, true, addAction), idx++, animate);
@@ -650,6 +665,8 @@ public class MainActivity extends Activity {
         if (oc != null) add(col, oc, idx++, animate);
         add(col, cardStack(animate), idx++, animate);
         add(col, performanceCard(scope, animate), idx++, animate);
+        View hm = heatmapCard(scope, animate);
+        if (hm != null) add(col, hm, idx++, animate);
         View fcc = forecastCard();
         if (fcc != null) add(col, fcc, idx++, animate);
         View alloc = allocationCard(scope);
@@ -823,6 +840,7 @@ public class MainActivity extends Activity {
         LinearLayout c = Ui.card(this);
         c.setClickable(true);
         c.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { current = first; screen = 1; render(true); } });
+        glow(c, l.toArray(new Store.Asset[0]));
         double units = 0, value = Store.value(l), cost = 0;
         boolean allCost = true;
         StringBuilder plats = new StringBuilder();
@@ -971,6 +989,7 @@ public class MainActivity extends Activity {
                 }
             }
             c.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { current = a; screen = 1; render(true); } });
+            glow(c, a);
             LinearLayout.LayoutParams lp = Ui.weight(1);
             lp.setMargins(i % 2 == 0 ? 0 : (int) (6 * dp), 0, i % 2 == 0 ? (int) (6 * dp) : 0, (int) (12 * dp));
             rowL.addView(c, lp);
@@ -1097,14 +1116,15 @@ public class MainActivity extends Activity {
         col.addView(Ui.space(this, 14));
         LinearLayout prof = Ui.card(this);
         LinearLayout pr = Ui.row(this);
-        IntroView pl = IntroView.logo(this);
+        View pl = avatarView("Me", 46);
+        pl.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { avatarDialog("Me"); } });
         LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams((int) (46 * dp), (int) (46 * dp));
         plp.setMargins(0, 0, (int) (14 * dp), 0);
         pr.addView(pl, plp);
         LinearLayout pt = new LinearLayout(this);
         pt.setOrientation(LinearLayout.VERTICAL);
         pt.addView(Ui.text(this, userName().isEmpty() ? "Add your name" : userName(), 17, Ui.TEXT, true));
-        pt.addView(Ui.text(this, userName().isEmpty() ? "For a personal greeting" : "Tap to change your name", 12, Ui.SUB, false));
+        pt.addView(Ui.text(this, userName().isEmpty() ? "For a personal greeting" : "Tap the picture to change it, or here for your name", 12, Ui.SUB, false));
         pr.addView(pt, Ui.weight(1));
         pr.addView(Ui.text(this, "✎", 18, Ui.ACCENT, true));
         prof.addView(pr);
@@ -1160,6 +1180,7 @@ public class MainActivity extends Activity {
             @Override public void on(int i) { Alerts.prefs(MainActivity.this).edit().putInt("cardOpacity", ops[i]).apply(); render(false); }
         }, true));
         add(col, ap, idx++, animate);
+        add(col, effectsCard(), idx++, animate);
         add(col, Ui.text(this, "Galaxy Watch", 13, Ui.SUB, true), idx++, animate);
         col.addView(Ui.space(this, 6));
         add(col, watchCard(), idx++, animate);
@@ -1177,7 +1198,7 @@ public class MainActivity extends Activity {
                         : store.policies.size() + " polic" + (store.policies.size() == 1 ? "y" : "ies")},
                 {"How to get your CAS", "Free from CAMS or KFintech, by e-mail"},
                 {"Automatic backup", Alerts.prefs(this).getString("bkTree", null) == null ? "Off · encrypted daily copy to a folder" : "On · encrypted daily copy"},
-                {"Family members", store.owners().size() + " · rename, or add via the Owner field"},
+                {"Family members", store.owners().size() + " · pictures, names, or add via the Owner field"},
                 {"Insights", "Concentration, overlap, Regular plans, vs Nifty"},
                 {"Capital gains & tax", "This year's estimate and tax harvesting"}};
         for (int i = 0; i < imp.length; i++) {
@@ -1673,6 +1694,7 @@ public class MainActivity extends Activity {
             c.addView(Ui.space(this, 6));
             c.addView(Ui.text(this, Ui.pct(p), 16, Ui.colorFor(p), true));
             c.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { current = a; screen = 1; render(true); } });
+            glow(c, a);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) (150 * dp), ViewGroup.LayoutParams.WRAP_CONTENT);
             lp.setMargins(0, 0, (int) (10 * dp), 0);
             r.addView(c, lp);
@@ -1780,6 +1802,7 @@ public class MainActivity extends Activity {
                 c.addView(r);
             }
         }
+        glow(c, a);
         return c;
     }
 
@@ -2821,7 +2844,16 @@ public class MainActivity extends Activity {
                         refreshStatus = null;
                         if (pull != null) pull.stop();
                         if (owner != store || isFinishing()) return;   // data was reloaded meanwhile
+                        Map<Store.Asset, Double> before = new java.util.HashMap<>();
+                        for (Store.Asset a : todo) { Map.Entry<Long, Double> l = a.latest(); if (l != null) before.put(a, l.getValue()); }
                         int[] r = Updater.apply(store, todo, results);
+                        moved.clear();
+                        for (Store.Asset a : todo) {
+                            Map.Entry<Long, Double> l = a.latest();
+                            Double b = before.get(a);
+                            if (l != null && b != null && Math.abs(l.getValue() - b) > 1e-9) moved.put(a, l.getValue() > b ? 1 : -1);
+                        }
+                        movedAt = System.currentTimeMillis();
                         try { Alerts.check(MainActivity.this, store); } catch (Throwable t) { Crash.save(MainActivity.this, t); }
                         if (r[1] > 0 && !silent) toast(r[0] + " updated, " + r[1] + " failed. Check internet or symbol.");
                         if (!locked && !hiddenForRecents) render(only != null);
@@ -2857,6 +2889,14 @@ public class MainActivity extends Activity {
         if (req == REQ_TREE) {
             authInProgress = false;
             if (res == RESULT_OK && data != null && data.getData() != null) onTreePicked(data.getData());
+            return;
+        }
+        if (req == REQ_AVATAR) {
+            authInProgress = false;
+            if (res == RESULT_OK && data != null && data.getData() != null && avatarFor != null) {
+                try { Avatars.setPhoto(this, avatarFor, data.getData()); render(false); }
+                catch (Exception e) { toast("Couldn't use that picture"); }
+            }
             return;
         }
         if (req != REQ_FILE) return;
@@ -3418,14 +3458,27 @@ public class MainActivity extends Activity {
         HorizontalScrollView hs = new HorizontalScrollView(this);
         hs.setHorizontalScrollBarEnabled(false);
         String[] arr = new String[labels.size()];
-        for (int i = 0; i < arr.length; i++) arr[i] = (i == 0 ? "👪 " : "👤 ") + labels.get(i);
-        hs.addView(chips(arr, sel, new Pick() {
+        for (int i = 0; i < arr.length; i++) arr[i] = (i == 0 ? "👪 " : "") + labels.get(i);
+        View chipRow = chips(arr, sel, new Pick() {
             @Override public void on(int i) {
                 store.ownerFilter = i == 0 ? null : owners.get(i - 1);
                 Alerts.prefs(MainActivity.this).edit().putString("owner", store.ownerFilter).apply();
                 render(true);
             }
-        }, false));
+        }, false);
+        // a small round picture before each person's name
+        List<TextView> tvs = new ArrayList<>();
+        collectTexts(chipRow, tvs);
+        for (int i = 1; i < tvs.size() && i <= owners.size(); i++) {
+            final String who = owners.get(i - 1);
+            android.graphics.drawable.Drawable d = Avatars.drawable(this, who, (int) (20 * dp));
+            tvs.get(i).setCompoundDrawablesRelative(d, null, null, null);
+            tvs.get(i).setCompoundDrawablePadding((int) (6 * dp));
+            tvs.get(i).setOnLongClickListener(new View.OnLongClickListener() {
+                @Override public boolean onLongClick(View v) { avatarDialog(who); return true; }
+            });
+        }
+        hs.addView(chipRow);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.bottomMargin = (int) (10 * dp);
         hs.setLayoutParams(lp);
@@ -3723,10 +3776,13 @@ public class MainActivity extends Activity {
         final int op = Alerts.prefs(this).getInt("cardOpacity", 60);
         int[] gc = new int[grad.length];
         for (int i = 0; i < grad.length; i++) gc[i] = (grad[i] & 0x00FFFFFF) | ((op * 255 / 100) << 24);
-        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, gc);
-        g.setCornerRadius(24 * dp);
-        if (op < 100) g.setStroke(Math.max(1, (int) dp), 0x4DFFFFFF);     // thin glass edge
-        f.setBackground(g);
+        if (op < 100) {
+            f.setBackground(new Fx.Glass(gc, 24 * dp, dp, true));          // frosted glass
+        } else {
+            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, gc);
+            g.setCornerRadius(24 * dp);
+            f.setBackground(g);
+        }
         if (op >= 100) f.setElevation(6 * dp);     // a shadow would show through a see-through card
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
@@ -3745,14 +3801,20 @@ public class MainActivity extends Activity {
         top.addView(cnt);
         c.addView(top);
         double total = Store.value(list);
-        TextView val = Ui.text(this, Ui.rupees(total), 30, 0xFFFFFFFF, true);
-        val.setSingleLine(true);
+        String rk = "card:" + title + "@" + store.ownerFilter;
+        RollText val = new RollText(this);
+        Ui.style(val, 30, 0xFFFFFFFF, true);
+        boolean seen = RollText.seen(rk);
+        val.show(rk, Ui.rupees(total), total);
         c.addView(val, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        if (animate && total > 0) Ui.countUp(val, total, true);
+        if (animate && total > 0 && !seen) Ui.countUp(val, total, true);
         double day = Store.lastChange(list);
         double base = total - day;
         String ch = day == 0 ? "No change today" : (day >= 0 ? "▲ " : "▼ ") + signed(day) + "  " + Ui.pct(base > 0 ? day / base * 100 : null) + " today";
-        c.addView(Ui.text(this, ch, 13, day >= 0 ? 0xFFCFFFE2 : 0xFFFFD6D6, true));
+        RollText chv = new RollText(this);
+        Ui.style(chv, 13, day >= 0 ? 0xFFCFFFE2 : 0xFFFFD6D6, true);
+        chv.show(rk + ":day", ch, day);
+        c.addView(chv);
         View spacer = new View(this);
         c.addView(spacer, new LinearLayout.LayoutParams(1, 0, 1));
         LinearLayout bottom = Ui.row(this);
@@ -4197,21 +4259,32 @@ public class MainActivity extends Activity {
                     + "Then switch between Everyone and each person at the top of Dashboard and Portfolio.").setPositiveButton("OK", null).show();
             return;
         }
-        dialog().setTitle("Rename family member").setItems(owners.toArray(new String[0]), new DialogInterface.OnClickListener() {
+        dialog().setTitle("Family members").setItems(owners.toArray(new String[0]), new DialogInterface.OnClickListener() {
             @Override public void onClick(DialogInterface d, int w) {
-                final String from = owners.get(w);
+                final String who = owners.get(w);
+                dialog().setTitle(who).setItems(new String[]{"Change picture", "Rename"}, new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d1, int w1) { if (w1 == 0) avatarDialog(who); else renameOne(who); }
+                }).show();
+            }
+        }).show();
+    }
+
+    private void renameOne(final String from) {
+        {
+            {
                 final EditText e = new EditText(MainActivity.this);
                 e.setText(from);
                 dialog().setTitle("Rename " + from).setView(padded(e)).setPositiveButton("Save", new DialogInterface.OnClickListener() {
                     @Override public void onClick(DialogInterface d2, int w2) {
                         String to = ownerValue(e.getText().toString());
                         for (Store.Asset a : store.assets) if (a.ownerOrDefault().equalsIgnoreCase(from)) a.owner = to;
+                        Avatars.rename(MainActivity.this, from, to.isEmpty() ? "Me" : to);
                         if (from.equalsIgnoreCase(store.ownerFilter)) { store.ownerFilter = to.isEmpty() ? "Me" : to; Alerts.prefs(MainActivity.this).edit().putString("owner", store.ownerFilter).apply(); }
                         store.save(); render(false);
                     }
                 }).setNegativeButton("Cancel", null).show();
             }
-        }).show();
+        }
     }
 
     // ================================================================== more menu
@@ -5264,20 +5337,23 @@ public class MainActivity extends Activity {
         return h < 5 ? "Good evening" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
     }
 
-    /** Small logo with "Good morning, Asha" above the dashboard title. */
+    /** Your picture (or the logo) with "Good morning, Asha 👋", or a festival greeting, above the dashboard title. */
     private View greetingRow() {
-        if (userName().isEmpty()) return null;
+        String fest = Seasons.greeting(LocalDate.now());
+        if (userName().isEmpty() && fest == null) return null;
         LinearLayout r = Ui.row(this);
         r.setPadding(0, 0, 0, (int) (6 * dp));
-        IntroView logo = IntroView.logo(this);
+        View pic = Avatars.isSet(this, "Me") ? avatarView("Me", 30) : IntroView.logo(this);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) (30 * dp), (int) (30 * dp));
         lp.setMargins(0, 0, (int) (10 * dp), 0);
-        r.addView(logo, lp);
-        TextView t = Ui.text(this, partOfDay() + ", " + userName() + " 👋", 15, Ui.TEXT, true);
+        r.addView(pic, lp);
+        String line = fest != null ? Seasons.withName(fest, userName()) : partOfDay() + ", " + userName() + " 👋";
+        TextView t = Ui.text(this, line, 15, Ui.TEXT, true);
         t.setSingleLine(true);
         t.setEllipsize(android.text.TextUtils.TruncateAt.END);
         r.addView(t, Ui.weight(1));
-        r.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { nameDialog(); } });
+        pic.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { avatarDialog("Me"); } });
+        t.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { nameDialog(); } });
         return r;
     }
 
@@ -5531,6 +5607,163 @@ public class MainActivity extends Activity {
         info.addView(Ui.text(this, "The watch gets your holdings, family profiles and name, then refreshes prices on its own. "
                 + "Sync again after you add or change holdings. Nothing goes through the internet.", 11, Ui.HINT, false));
         c.addView(info);
+        return c;
+    }
+
+
+    // ================================================================== looks: glow, heat-map, avatars, effects
+    private final Map<Store.Asset, Integer> moved = new java.util.HashMap<>();
+    private long movedAt;
+    private int heatRange = 0;
+    private static final int REQ_AVATAR = 79;
+    private String avatarFor;
+
+    /** A brief green or red glow on a card whose price just changed in a refresh. */
+    private void glow(final View card, Store.Asset... assets) {
+        if (System.currentTimeMillis() - movedAt > 8000) return;
+        int dir = 0;
+        for (Store.Asset a : assets) { Integer m = moved.get(a); if (m != null) dir += m; }
+        if (dir == 0) return;
+        final GradientDrawable g = new GradientDrawable();
+        g.setColor(((dir > 0 ? Ui.GREEN : Ui.RED) & 0x00FFFFFF) | 0x55000000);
+        g.setCornerRadius(18 * dp);
+        g.setAlpha(0);
+        card.setForeground(g);
+        android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(0f, 1f);
+        va.setStartDelay(200);
+        va.setDuration(1700);
+        va.addUpdateListener(new android.animation.ValueAnimator.AnimatorUpdateListener() {
+            @Override public void onAnimationUpdate(android.animation.ValueAnimator v) {
+                float t = (Float) v.getAnimatedValue();
+                // two soft pulses, the second fainter
+                double a = t < 0.5 ? Math.sin(t / 0.5 * Math.PI) : 0.6 * Math.sin((t - 0.5) / 0.5 * Math.PI);
+                g.setAlpha((int) (255 * Math.max(0, a)));
+            }
+        });
+        va.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(android.animation.Animator an) { card.setForeground(null); }
+        });
+        va.start();
+    }
+
+    private static void collectTexts(View v, List<TextView> out) {
+        if (v instanceof TextView) { out.add((TextView) v); return; }
+        if (v instanceof ViewGroup) for (int i = 0; i < ((ViewGroup) v).getChildCount(); i++) collectTexts(((ViewGroup) v).getChildAt(i), out);
+    }
+
+    private View heatmapCard(List<Store.Asset> scope, boolean animate) {
+        Map<String, List<Store.Asset>> m = merged(scope);
+        List<TreemapView.Item> items = new ArrayList<>();
+        for (List<Store.Asset> l : m.values()) {
+            Store.Asset a = l.get(0);
+            if (a.type != Store.MF && a.type != Store.STOCK && a.type != Store.ULIP) continue;
+            double v = Store.value(l);
+            if (v <= 0) continue;
+            Double ch;
+            if (heatRange == 0) { double d = Store.lastChange(l); ch = v - d > 0 && a.previous() != null ? d / (v - d) * 100 : null; }
+            else ch = a.changeOver(heatRange == 1 ? 30 : 365);
+            items.add(new TreemapView.Item(shortName(a), v, ch, a));
+        }
+        if (items.size() < 2) return null;
+        LinearLayout c = Ui.card(this);
+        LinearLayout t = Ui.row(this);
+        t.addView(Ui.text(this, "Heat-map", 16, Ui.TEXT, true), Ui.weight(1));
+        t.addView(Ui.text(this, "size = value", 11, Ui.SUB, false));
+        c.addView(t);
+        c.addView(Ui.space(this, 8));
+        c.addView(chips(new String[]{"Today", "1 month", "1 year"}, heatRange, new Pick() {
+            @Override public void on(int i) { if (i != heatRange) { heatRange = i; render(false); } }
+        }, false));
+        c.addView(Ui.space(this, 10));
+        TreemapView tv = new TreemapView(this);
+        tv.setItems(items, heatRange == 0 ? 3 : heatRange == 1 ? 10 : 30);
+        tv.setListener(new TreemapView.Listener() {
+            @Override public void onTap(TreemapView.Item it) { current = (Store.Asset) it.tag; screen = 1; render(true); }
+        });
+        if (animate) tv.play();
+        c.addView(tv, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (230 * dp)));
+        c.addView(Ui.space(this, 6));
+        c.addView(Ui.text(this, "Green up, red down; stronger colour, bigger move. Tap a tile to open it.", 11, Ui.HINT, false));
+        return c;
+    }
+
+    /** Round picture view for a person ("Me" is you). */
+    private View avatarView(final String who, final int sizeDp) {
+        android.widget.ImageView iv = new android.widget.ImageView(this);
+        iv.setImageBitmap(Avatars.bitmap(this, who, (int) (sizeDp * dp * 2)));
+        iv.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+        return iv;
+    }
+
+    private void avatarDialog(final String who) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        final AlertDialog[] dlg = new AlertDialog[1];
+        android.widget.GridLayout grid = new android.widget.GridLayout(this);
+        grid.setColumnCount(6);
+        for (final String e : Avatars.EMOJIS) {
+            TextView b = Ui.text(this, e, 26, Ui.TEXT, false);
+            b.setGravity(Gravity.CENTER);
+            b.setPadding((int) (4 * dp), (int) (6 * dp), (int) (4 * dp), (int) (6 * dp));
+            b.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    Avatars.setEmoji(MainActivity.this, who, e);
+                    if (dlg[0] != null) dlg[0].dismiss();
+                    render(false);
+                }
+            });
+            android.widget.GridLayout.LayoutParams gl = new android.widget.GridLayout.LayoutParams();
+            gl.width = (int) (44 * dp);
+            grid.addView(b, gl);
+        }
+        box.addView(grid);
+        AlertDialog.Builder b = dialog().setTitle("Me".equals(who) ? "Your picture" : who + "'s picture")
+                .setView(padded(box))
+                .setPositiveButton("Choose photo", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int w) {
+                        avatarFor = who;
+                        Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                        i.setType("image/*");
+                        i.addCategory(Intent.CATEGORY_OPENABLE);
+                        authInProgress = true;
+                        try { startActivityForResult(Intent.createChooser(i, "Choose a photo"), REQ_AVATAR); }
+                        catch (Exception e) { authInProgress = false; toast("No photo picker found"); }
+                    }
+                })
+                .setNegativeButton("Cancel", null);
+        if (Avatars.isSet(this, who)) b.setNeutralButton("Remove", new DialogInterface.OnClickListener() {
+            @Override public void onClick(DialogInterface d, int w) { Avatars.clear(MainActivity.this, who); render(false); }
+        });
+        dlg[0] = b.show();
+    }
+
+    private View effectsCard() {
+        LinearLayout c = Ui.card(this);
+        c.setPadding(0, (int) (4 * dp), 0, (int) (4 * dp));
+        c.addView(switchRow("Market mood & glass", "Dashboard glows green on up days and red on down days, with frosted-glass cards",
+                moodOn(), true, new Toggle() {
+                    @Override public void set(boolean on) {
+                        Alerts.prefs(MainActivity.this).edit().putBoolean("mood", on).apply();
+                        ui.post(new Runnable() { @Override public void run() { render(false); } });
+                    }
+                }));
+        c.addView(divider());
+        c.addView(switchRow("Tilt cards with the phone", "The dashboard card stack leans slightly as you tilt, with a moving shine",
+                CardStack.TILT, true, new Toggle() {
+                    @Override public void set(boolean on) {
+                        CardStack.TILT = on;
+                        Alerts.prefs(MainActivity.this).edit().putBoolean("tilt", on).apply();
+                        ui.post(new Runnable() { @Override public void run() { render(false); } });
+                    }
+                }));
+        c.addView(divider());
+        c.addView(switchRow("Pure black", "True black backgrounds in dark mode, for AMOLED screens",
+                Alerts.prefs(this).getBoolean("amoled", false), true, new Toggle() {
+                    @Override public void set(boolean on) {
+                        Alerts.prefs(MainActivity.this).edit().putBoolean("amoled", on).apply();
+                        ui.post(new Runnable() { @Override public void run() { recreate(); } });
+                    }
+                }));
         return c;
     }
 }
