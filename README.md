@@ -3,7 +3,7 @@
 Two Android apps, written in plain Java on the Android framework only (no AndroidX or other
 libraries). Each folder is an Android Studio project and also includes the APK built from it.
 
-## Portfolio (`Portfolio/`, package `com.uliptracker`, v8.4)
+## Portfolio (`Portfolio/`, package `com.uliptracker`, v8.4.1)
 
 | File | What it does |
 |---|---|
@@ -20,7 +20,7 @@ libraries). Each folder is an Android Studio project and also includes the APK b
 | `CardStack.java` | Wallet-style stack of summary cards on the Dashboard (swipe up/down) |
 | `IntroView.java` | Animated launch logo (also draws the static logo) |
 | `Analytics.java`, `ForecastView.java` | Asset classes, past performance, Monte Carlo forecast and goal maths; the forecast fan chart |
-| `Fx.java` | Market-mood page background and frosted-glass card surfaces |
+| `Fx.java` | Market-mood page background and colour blending |
 | `RollText.java` | Numbers that roll like an odometer when they change |
 | `TreemapView.java` | Heat-map of holdings (squarified treemap) |
 | `Avatars.java`, `Seasons.java` | Profile pictures for you and family members; festival and finance-day greetings |

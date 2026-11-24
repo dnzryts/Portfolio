@@ -58,9 +58,6 @@ public final class Ui {
 
     private static final Locale IN = new Locale("en", "IN");
 
-    /** While true, new cards get a frosted-glass background (set while the Dashboard is built). */
-    public static boolean GLASS = false;
-
     private Ui() { }
 
     public static String rupees(double v) {
@@ -112,14 +109,10 @@ public final class Ui {
         LinearLayout l = new LinearLayout(c);
         l.setOrientation(LinearLayout.VERTICAL);
         l.setPadding((int) (16 * d), (int) (14 * d), (int) (16 * d), (int) (14 * d));
-        if (GLASS) {
-            l.setBackground(new Fx.Glass(new int[]{(CARD & 0x00FFFFFF) | (LIGHT ? 0xC8000000 : 0xB0000000)}, 18 * d, d, false));
-        } else {
-            GradientDrawable g = new GradientDrawable();
-            g.setColor(CARD);
-            g.setCornerRadius(18 * d);
-            l.setBackground(g);
-        }
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(CARD);
+        g.setCornerRadius(18 * d);
+        l.setBackground(g);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         lp.setMargins(0, 0, 0, (int) (12 * d));

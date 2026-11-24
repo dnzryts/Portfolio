@@ -1,43 +1,19 @@
 package com.uliptracker;
 
-import android.graphics.Bitmap;
-import android.graphics.BitmapShader;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.RadialGradient;
-import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
 
-import java.util.Random;
-
-/** Decorative drawables: the Dashboard's market-mood background and frosted-glass surfaces. */
+/** Decorative drawables: the Dashboard's market-mood background, and colour blending. */
 public final class Fx {
 
     private Fx() { }
-
-    private static Bitmap noise;
-
-    /** A small tile of fine grain, shared by every glass surface. */
-    static synchronized Bitmap noise() {
-        if (noise == null) {
-            int n = 96;
-            int[] px = new int[n * n];
-            Random r = new Random(11);
-            for (int i = 0; i < px.length; i++) {
-                int v = r.nextInt(256);
-                int a = 10 + r.nextInt(16);
-                px[i] = (a << 24) | (v << 16) | (v << 8) | v;
-            }
-            noise = Bitmap.createBitmap(px, n, n, Bitmap.Config.ARGB_8888);
-        }
-        return noise;
-    }
 
     /** Blend two colours: t = 0 gives a, t = 1 gives b. */
     public static int mix(int a, int b, float t) {
@@ -105,61 +81,5 @@ public final class Fx {
         @Override public void setAlpha(int alpha) { }
         @Override public void setColorFilter(ColorFilter cf) { }
         @Override public int getOpacity() { return PixelFormat.OPAQUE; }
-    }
-
-    // ------------------------------------------------------------------ frosted glass
-    /**
-     * A frosted-glass surface: a see-through fill (gradient or plain), a soft light from the top-left,
-     * fine grain, a bright top edge and a thin outline.
-     */
-    public static class Glass extends Drawable {
-        private final int[] colors;
-        private final float radius, dp;
-        private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG), grain = new Paint(Paint.ANTI_ALIAS_FLAG),
-                edge = new Paint(Paint.ANTI_ALIAS_FLAG), light = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final RectF r = new RectF();
-        private final Path path = new Path();
-        private final boolean onColour;
-
-        /** @param colors one colour (plain) or several (top-left → bottom-right gradient), alpha included */
-        public Glass(int[] colors, float radius, float dp, boolean onColour) {
-            this.colors = colors;
-            this.radius = radius;
-            this.dp = dp;
-            this.onColour = onColour;
-            grain.setShader(new BitmapShader(noise(), Shader.TileMode.REPEAT, Shader.TileMode.REPEAT));
-            edge.setStyle(Paint.Style.STROKE);
-            edge.setStrokeWidth(Math.max(1, dp));
-        }
-
-        @Override
-        protected void onBoundsChange(android.graphics.Rect b) {
-            r.set(b.left + dp / 2, b.top + dp / 2, b.right - dp / 2, b.bottom - dp / 2);
-            path.reset();
-            path.addRoundRect(r, radius, radius, Path.Direction.CW);
-            if (colors.length > 1) fill.setShader(new LinearGradient(r.left, r.top, r.right, r.bottom, colors, null, Shader.TileMode.CLAMP));
-            else { fill.setShader(null); fill.setColor(colors[0]); }
-            int hi = onColour || !Ui.LIGHT ? 0x2EFFFFFF : 0x66FFFFFF;
-            light.setShader(new LinearGradient(r.left, r.top, r.left + r.width() * 0.6f, r.top + r.height() * 0.9f,
-                    new int[]{hi, 0x00FFFFFF}, null, Shader.TileMode.CLAMP));
-            edge.setShader(new LinearGradient(0, r.top, 0, r.bottom,
-                    new int[]{onColour || !Ui.LIGHT ? 0x66FFFFFF : 0xCCFFFFFF, onColour || !Ui.LIGHT ? 0x14FFFFFF : 0x22000000},
-                    null, Shader.TileMode.CLAMP));
-        }
-
-        @Override
-        public void draw(Canvas c) {
-            c.drawPath(path, fill);
-            c.drawPath(path, light);
-            c.drawPath(path, grain);
-            c.drawPath(path, edge);
-        }
-
-        @Override
-        public void getOutline(android.graphics.Outline o) { o.setRoundRect(getBounds(), radius); o.setAlpha(0f); }
-
-        @Override public void setAlpha(int alpha) { }
-        @Override public void setColorFilter(ColorFilter cf) { }
-        @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
     }
 }

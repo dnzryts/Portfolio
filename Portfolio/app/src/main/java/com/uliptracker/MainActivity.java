@@ -652,8 +652,7 @@ public class MainActivity extends Activity {
             double tv = Store.value(scope), td = Store.lastChange(scope);
             scroller.setBackground(new Fx.Mood(tv - td > 0 ? td / (tv - td) * 100 : 0));
         }
-        Ui.GLASS = mood;
-        try { buildDashboard(col, scope, animate, idx); } finally { Ui.GLASS = false; }
+        buildDashboard(col, scope, animate, idx);
     }
 
     private void buildDashboard(LinearLayout col, List<Store.Asset> scope, boolean animate, int idx) {
@@ -3776,13 +3775,10 @@ public class MainActivity extends Activity {
         final int op = Alerts.prefs(this).getInt("cardOpacity", 60);
         int[] gc = new int[grad.length];
         for (int i = 0; i < grad.length; i++) gc[i] = (grad[i] & 0x00FFFFFF) | ((op * 255 / 100) << 24);
-        if (op < 100) {
-            f.setBackground(new Fx.Glass(gc, 24 * dp, dp, true));          // frosted glass
-        } else {
-            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, gc);
-            g.setCornerRadius(24 * dp);
-            f.setBackground(g);
-        }
+        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, gc);
+        g.setCornerRadius(24 * dp);
+        if (op < 100) g.setStroke(Math.max(1, (int) dp), 0x4DFFFFFF);     // thin glass edge
+        f.setBackground(g);
         if (op >= 100) f.setElevation(6 * dp);     // a shadow would show through a see-through card
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
@@ -5740,7 +5736,7 @@ public class MainActivity extends Activity {
     private View effectsCard() {
         LinearLayout c = Ui.card(this);
         c.setPadding(0, (int) (4 * dp), 0, (int) (4 * dp));
-        c.addView(switchRow("Market mood & glass", "Dashboard glows green on up days and red on down days, with frosted-glass cards",
+        c.addView(switchRow("Market-mood background", "Dashboard glows softly green on up days and red on down days",
                 moodOn(), true, new Toggle() {
                     @Override public void set(boolean on) {
                         Alerts.prefs(MainActivity.this).edit().putBoolean("mood", on).apply();
