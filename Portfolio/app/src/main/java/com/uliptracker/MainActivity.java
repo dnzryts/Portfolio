@@ -105,7 +105,9 @@ public class MainActivity extends Activity {
         if (b != null) {   // restore place after a theme change / rotation
             tab = b.getInt("tab", 0); scopeKind = b.getInt("scopeKind", 0); scopeType = b.getInt("scopeType", 0);
             scopePlatform = b.getString("scopePlatform", ""); groupBy = b.getInt("groupBy", 0); listMode = b.getInt("listMode", 2);
-            if (b.getBoolean("unlocked", false)) stoppedAt = System.currentTimeMillis();
+            // a theme change or rotation restarts the screen: stay unlocked if it was unlocked moments ago
+            // (onResume still asks if more than 30 s passed, e.g. the app was closed in the background)
+            if (b.getBoolean("unlocked", false)) stoppedAt = b.getLong("visibleAt", 0);
         }
         getWindow().setStatusBarColor(Ui.BG);
         int flags = 0;
@@ -193,7 +195,10 @@ public class MainActivity extends Activity {
         super.onSaveInstanceState(out);
         out.putInt("tab", tab); out.putInt("scopeKind", scopeKind); out.putInt("scopeType", scopeType);
         out.putString("scopePlatform", scopePlatform); out.putInt("groupBy", groupBy); out.putInt("listMode", listMode);
-        out.putBoolean("unlocked", !locked && !hiddenForRecents);
+        // onStop (which hides data for the recents screen) runs before this on Android 9+, so don't judge by
+        // hiddenForRecents: record whether the user had unlocked, and when the app was last on screen
+        out.putBoolean("unlocked", !locked);
+        out.putLong("visibleAt", hiddenForRecents && stoppedAt > 0 ? stoppedAt : System.currentTimeMillis());
         out.putBoolean("private", Ui.PRIVATE);
     }
 

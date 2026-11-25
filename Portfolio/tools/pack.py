@@ -93,7 +93,7 @@ P.ATTR_IDS.update({"drawable": 0x01010199, "roundIcon": 0x0101052C})
 
 
 manifest = E("manifest", [(None, "package", T_STR, P.PKG),
-                          ("a", "versionCode", T_INT, 30), ("a", "versionName", T_STR, "8.7")], [
+                          ("a", "versionCode", T_INT, 31), ("a", "versionName", T_STR, "8.7.1")], [
     E("uses-sdk", [("a", "minSdkVersion", T_INT, 26), ("a", "targetSdkVersion", T_INT, 34)]),
     E("uses-permission", [("a", "name", T_STR, "android.permission.INTERNET")]),
     E("uses-permission", [("a", "name", T_STR, "android.permission.ACCESS_NETWORK_STATE")]),

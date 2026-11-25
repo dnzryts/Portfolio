@@ -4,6 +4,10 @@ All notable changes to Portfolio (Android) and Portfolio for Galaxy Watch.
 Newest first. The app shows this list under More › About & what's new; it's built from
 this file by `Portfolio/tools/changelog.py`, so edit here and re-run the script.
 
+## 8.7.1 — 25 Nov 2026
+- Changing the theme (System, Light, Dark, Pure black) no longer asks for your fingerprint; neither does your phone switching between light and dark on its own
+- The app still locks as before when you come back after more than 30 seconds away
+
 ## 8.7 · Watch 1.2 — 25 Nov 2026
 - App version shown in More › About & what's new, with this full change history
 - "What's new" pop-up the first time you open a new version
