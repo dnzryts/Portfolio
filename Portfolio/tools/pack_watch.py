@@ -17,7 +17,7 @@ ICON = 0x7F010000
 
 CLS = "com.uliptracker"
 manifest = E("manifest", [(None, "package", T_STR, P.PKG),
-                          ("a", "versionCode", T_INT, 2), ("a", "versionName", T_STR, "1.1")], [
+                          ("a", "versionCode", T_INT, 3), ("a", "versionName", T_STR, "1.2")], [
     E("uses-sdk", [("a", "minSdkVersion", T_INT, 30), ("a", "targetSdkVersion", T_INT, 34)]),
     E("uses-feature", [("a", "name", T_STR, "android.hardware.type.watch")]),
     E("uses-permission", [("a", "name", T_STR, "android.permission.INTERNET")]),

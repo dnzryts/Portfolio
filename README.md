@@ -3,7 +3,7 @@
 Two Android apps, written in plain Java on the Android framework only (no AndroidX or other
 libraries). Each folder is an Android Studio project and also includes the APK built from it.
 
-## Portfolio (`Portfolio/`, package `com.uliptracker`, v8.6)
+## Portfolio (`Portfolio/`, package `com.uliptracker`, v8.7)
 
 | File | What it does |
 |---|---|
@@ -24,6 +24,7 @@ libraries). Each folder is an Android Studio project and also includes the APK b
 | `RollText.java` | Numbers that roll like an odometer when they change |
 | `TreemapView.java` | Heat-map of holdings (squarified treemap) |
 | `Avatars.java`, `Seasons.java` | Profile pictures for you and family members; festival and finance-day greetings |
+| `Changelog.java` | Release history for More › About & what's new; generated from `CHANGELOG.md` by `tools/changelog.py` |
 | `AppDialog.java` | Every pop-up in the app's style: rounded card, app fonts, pill buttons, filled text fields, rich menu rows |
 | `PullRefresh.java` | Pull down from the top of a page to refresh prices |
 | `WatchLink.java` | Phone ⇄ watch sync over Bluetooth (secure RFCOMM between the paired devices) |
@@ -33,7 +34,7 @@ libraries). Each folder is an Android Studio project and also includes the APK b
 | `Parser.java` | Reads pasted SBI Life NAV tables |
 | `ChartView.java`, `DonutView.java`, `NavIcon.java`, `Ui.java` | Charts, donut, bottom-bar icons, colours, animations |
 
-## Portfolio for Galaxy Watch (`Portfolio/watch`, package `com.uliptracker.watch`, v1.1)
+## Portfolio for Galaxy Watch (`Portfolio/watch`, package `com.uliptracker.watch`, v1.2)
 
 A small Wear OS app (Wear OS 3 or later; built and checked here, not yet tried on a watch): total value, today's change, overall gain,
 totals by type and top holdings, with family profiles and privacy mode. It reuses the phone
@@ -87,3 +88,8 @@ updates over the apps already on your phone. Apps built in Android Studio use it
 so you'll have to uninstall the old app first, which deletes its data. **Make a backup first**
 (More › Share backup).
 Don't share this key with anyone or upload it publicly.
+
+## Releases
+
+See [CHANGELOG.md](CHANGELOG.md). When releasing: add the version at the top of CHANGELOG.md, bump the version in
+`tools/pack.py` and `app/build.gradle`, then run `python3 Portfolio/tools/changelog.py CHANGELOG.md Portfolio/app/src/main/java/com/uliptracker/Changelog.java`.

@@ -158,6 +158,7 @@ public class MainActivity extends Activity {
         shell.addView(root);
         setContentView(shell);
         if (b == null && !Alerts.prefs(this).getBoolean("name_asked", false)) welcome(shell);
+        if (b == null) maybeWhatsNew();
         if (b == null && Alerts.prefs(this).getBoolean("intro", true)) {
             IntroView iv = new IntroView(this);
             String fest = Seasons.greeting(LocalDate.now());
@@ -305,6 +306,7 @@ public class MainActivity extends Activity {
         else if (screen == 4) showPolicies(animate);
         else if (screen == 5) showInsights(animate);
         else if (screen == 6) showTax(animate);
+        else if (screen == 7) showChangelog(animate);
         else if (tab == 0) showDashboard(animate);
         else if (tab == 1) showPortfolio(animate);
         else if (tab == 2) showAnalytics(animate);
@@ -1199,6 +1201,9 @@ public class MainActivity extends Activity {
         }, true));
         add(col, ap, idx++, animate);
         add(col, effectsCard(), idx++, animate);
+        add(col, Ui.text(this, "About", 13, Ui.SUB, true), idx++, animate);
+        col.addView(Ui.space(this, 6));
+        add(col, aboutCard(), idx++, animate);
         add(col, Ui.text(this, "Galaxy Watch", 13, Ui.SUB, true), idx++, animate);
         col.addView(Ui.space(this, 6));
         add(col, watchCard(), idx++, animate);
@@ -5913,5 +5918,101 @@ public class MainActivity extends Activity {
         }
         toast(("Me".equals(who) ? "Your" : who + "'s") + " amounts now show in " + code + ". Nothing is converted.");
         render(false);
+    }
+
+
+    // ================================================================== version & what's new
+    /** {versionName, versionCode} of the installed app. */
+    private String[] appVersion() {
+        try {
+            android.content.pm.PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
+            long code = android.os.Build.VERSION.SDK_INT >= 28 ? pi.getLongVersionCode() : pi.versionCode;
+            return new String[]{pi.versionName, String.valueOf(code)};
+        } catch (Exception e) {
+            return new String[]{"?", "0"};
+        }
+    }
+
+    private View aboutCard() {
+        String[] v = appVersion();
+        LinearLayout c = Ui.card(this);
+        LinearLayout r = Ui.row(this);
+        View logo = IntroView.logo(this);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) (46 * dp), (int) (46 * dp));
+        lp.setMargins(0, 0, (int) (14 * dp), 0);
+        r.addView(logo, lp);
+        LinearLayout t = new LinearLayout(this);
+        t.setOrientation(LinearLayout.VERTICAL);
+        t.addView(Ui.text(this, "Portfolio", 17, Ui.TEXT, true));
+        t.addView(Ui.text(this, "Version " + v[0] + "  ·  build " + v[1], 13, Ui.SUB, false));
+        r.addView(t, Ui.weight(1));
+        c.addView(r);
+        Changelog.Entry latest = Changelog.ENTRIES[0];
+        c.addView(Ui.space(this, 12));
+        c.addView(Ui.text(this, "New in " + latest.version, 13, Ui.TEXT, true));
+        for (int i = 0; i < Math.min(3, latest.items.length); i++) {
+            TextView li = Ui.text(this, "•  " + latest.items[i], 12, Ui.SUB, false);
+            li.setPadding(0, (int) (3 * dp), 0, 0);
+            c.addView(li);
+        }
+        TextView all = Ui.text(this, "What's new & full history  ›", 14, Ui.ACCENT, true);
+        all.setPadding(0, (int) (12 * dp), 0, 0);
+        c.addView(all);
+        c.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View x) { screen = 7; render(true); } });
+        return c;
+    }
+
+    private void showChangelog(boolean animate) {
+        LinearLayout col = page(!animate);
+        int idx = 0;
+        TextView back = Ui.text(this, "‹  Back", 15, Ui.ACCENT, false);
+        back.setPadding(0, 0, 0, (int) (10 * dp));
+        back.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { slideBack(); } });
+        col.addView(back);
+        String[] v = appVersion();
+        add(col, header("What's new", false, false, null), idx++, animate);
+        col.addView(Ui.text(this, "You're on version " + v[0] + " (build " + v[1] + ")", 13, Ui.SUB, false));
+        col.addView(Ui.space(this, 14));
+        for (int k = 0; k < Changelog.ENTRIES.length; k++) {
+            Changelog.Entry e = Changelog.ENTRIES[k];
+            LinearLayout c = Ui.card(this);
+            LinearLayout r = Ui.row(this);
+            r.addView(Ui.text(this, e.version, k == 0 ? 18 : 16, Ui.TEXT, true), Ui.weight(1));
+            if (k == 0) r.addView(Ui.pill(this, "Latest", Ui.ACCENT));
+            else if (e.version.startsWith(v[0] + " ") || e.version.equals(v[0])) r.addView(Ui.pill(this, "Installed", Ui.GREEN));
+            c.addView(r);
+            if (!e.date.isEmpty()) c.addView(Ui.text(this, e.date, 12, Ui.SUB, false));
+            c.addView(Ui.space(this, 6));
+            for (String it : e.items) {
+                TextView li = Ui.text(this, "•  " + it, 13, k == 0 ? Ui.TEXT : Ui.SUB, false);
+                li.setPadding(0, (int) (4 * dp), 0, 0);
+                li.setLineSpacing(2 * dp, 1);
+                c.addView(li);
+            }
+            add(col, c, idx++, animate && k < 6);
+        }
+    }
+
+    /** After an update (not on a fresh install), show what changed once. */
+    private void maybeWhatsNew() {
+        String[] v = appVersion();
+        android.content.SharedPreferences p = Alerts.prefs(this);
+        String seen = p.getString("seen_version", null);
+        p.edit().putString("seen_version", v[1]).apply();
+        boolean upgrade = seen != null ? !seen.equals(v[1]) : p.getBoolean("name_asked", false);
+        if (!upgrade) return;
+        final Changelog.Entry e = Changelog.ENTRIES[0];
+        ui.postDelayed(new Runnable() {
+            @Override public void run() {
+                if (isFinishing() || locked) return;
+                StringBuilder b = new StringBuilder();
+                for (String it : e.items) b.append("•  ").append(it).append("\n\n");
+                dialog().setTitle("What's new in " + e.version).setMessage(b.toString().trim())
+                        .setPositiveButton("Got it", null)
+                        .setNeutralButton("All changes", new DialogInterface.OnClickListener() {
+                            @Override public void onClick(DialogInterface d, int w) { screen = 7; render(true); }
+                        }).show();
+            }
+        }, 2200);
     }
 }

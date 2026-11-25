@@ -223,6 +223,7 @@ public class WatchActivity extends Activity {
         if (store.refreshedAt > 0) line += "Prices " + Instant.ofEpochMilli(store.refreshedAt).atZone(ZoneId.systemDefault()).format(f);
         line += (line.isEmpty() ? "" : "\n") + "Synced " + Instant.ofEpochMilli(prefs().getLong("w_synced", 0)).atZone(ZoneId.systemDefault()).format(f);
         if (status != null) line = status + "\n" + line;
+        try { line += "\nVersion " + getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception ignored) { }
         col.addView(centered(line, 10, Ui.HINT, false));
         int y = sv.getScrollY();
         sv.removeAllViews();
