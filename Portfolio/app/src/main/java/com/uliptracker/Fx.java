@@ -61,6 +61,12 @@ public final class Fx {
             // accent glow so the glass has colour behind it
             blob(c, w * (0.30f + 0.10f * (float) Math.sin(t * 0.09 + 1)), h * (0.02f + 0.03f * (float) Math.sin(t * 0.15)),
                     w * 0.7f, accent, (int) (a * 0.6f));
+            // glows along the bottom, so the area around the floating menu has colour too (most visible in portrait)
+            boolean tall = h > w;
+            blob(c, w * (0.85f + 0.06f * (float) Math.sin(t * 0.12 + 2)), h * (tall ? 0.97f : 0.92f) + h * 0.02f * (float) Math.cos(t * 0.16),
+                    w * (tall ? 0.80f : 0.55f), mood, (int) (ma * 0.75f));
+            blob(c, w * (0.18f + 0.08f * (float) Math.cos(t * 0.10 + 1)), h * (tall ? 1.02f : 0.98f),
+                    w * (tall ? 0.70f : 0.45f), accent, (int) (a * 0.55f));
             // shimmer: a faint light sweeping across every ~9 s
             float sweep = ((t % 9f) / 9f) * 2.2f - 0.6f;
             paint.setShader(new LinearGradient(w * sweep - w * 0.35f, 0, w * sweep + w * 0.35f, h * 0.35f,

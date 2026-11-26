@@ -113,6 +113,10 @@ public class MainActivity extends Activity {
         // full screen: draw behind the status bar and the gesture/navigation bar
         getWindow().setStatusBarColor(0x00000000);
         getWindow().setNavigationBarColor(0x00000000);
+        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION | android.view.WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+        getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Ui.BG));
+        if (android.os.Build.VERSION.SDK_INT >= 28) getWindow().setNavigationBarDividerColor(0x00000000);
         // draw under every system bar, including the button bar at the side in landscape
         if (android.os.Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false);
         if (android.os.Build.VERSION.SDK_INT >= 29) {
