@@ -110,16 +110,26 @@ public class MainActivity extends Activity {
             if (b.getBoolean("unlocked", false)) stoppedAt = b.getLong("visibleAt", 0);
             pendingScrollY = b.getInt("scrollY", 0);
         }
-        getWindow().setStatusBarColor(Ui.BG);
-        int flags = 0;
-        if (light) flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        // full screen: draw behind the status bar and the gesture/navigation bar
+        getWindow().setStatusBarColor(0x00000000);
+        getWindow().setNavigationBarColor(0x00000000);
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            getWindow().setStatusBarContrastEnforced(false);
+            getWindow().setNavigationBarContrastEnforced(false);
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            android.view.WindowManager.LayoutParams wl = getWindow().getAttributes();
+            wl.layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            getWindow().setAttributes(wl);
+        }
+        int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+        if (light) flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
         getWindow().getDecorView().setSystemUiVisibility(flags);
-        getWindow().setNavigationBarColor(Ui.NAV);
+        land = getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
         store = new Store(this);
         store.ownerFilter = ownerPref();
         store.accrueAll();
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
+        final FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Ui.BG);
         content = new SwipeFrame(this);
         content.setListener(new SwipeFrame.Listener() {
@@ -154,9 +164,36 @@ public class MainActivity extends Activity {
             }
             @Override public void onRefresh() { refresh(null, false); }
         });
-        root.addView(pull, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
+        root.addView(pull, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        // a soft band behind the status bar so text scrolling under the clock stays readable
+        statusScrim = new View(this);
+        statusScrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{(Ui.BG & 0x00FFFFFF) | 0xF2000000, (Ui.BG & 0x00FFFFFF) | 0xD9000000}));
+        root.addView(statusScrim, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, Gravity.TOP));
         navBar = buildNavBar();
-        root.addView(navBar);
+        root.addView(navBar, navParams());
+        root.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+            @Override public android.view.WindowInsets onApplyWindowInsets(View v, android.view.WindowInsets in) {
+                int l = in.getSystemWindowInsetLeft(), t = in.getSystemWindowInsetTop(), r = in.getSystemWindowInsetRight(), bt = in.getSystemWindowInsetBottom();
+                // the keyboard shows up as a large bottom inset: hide the floating menu while typing
+                boolean kb = bt - in.getStableInsetBottom() > 100 * dp;
+                keyboardUp = kb;
+                if (!locked && !hiddenForRecents) navBar.setVisibility(kb ? View.GONE : View.VISIBLE);
+                if (android.os.Build.VERSION.SDK_INT >= 28 && in.getDisplayCutout() != null) {
+                    android.view.DisplayCutout dc = in.getDisplayCutout();
+                    l = Math.max(l, dc.getSafeInsetLeft()); r = Math.max(r, dc.getSafeInsetRight()); t = Math.max(t, dc.getSafeInsetTop());
+                }
+                if (l != insL || t != insT || r != insR || bt != insB) {
+                    insL = l; insT = t; insR = r; insB = bt;
+                    statusScrim.getLayoutParams().height = insT;
+                    statusScrim.requestLayout();
+                    navBar.setLayoutParams(navParams());
+                    pull.setTopInset(insT);
+                    if (scroller != null && scroller.getChildCount() > 0) padPage(scroller.getChildAt(0));
+                }
+                return in;
+            }
+        });
         FrameLayout shell = new FrameLayout(this);
         shell.addView(root);
         setContentView(shell);
@@ -284,7 +321,7 @@ public class MainActivity extends Activity {
                 locked = false;
                 hiddenForRecents = false;
                 if (pendingIncoming != null) { final android.net.Uri u = pendingIncoming; pendingIncoming = null; ui.post(new Runnable() { @Override public void run() { importUri(u); } }); }
-                navBar.setVisibility(View.VISIBLE);
+                navBar.setVisibility(keyboardUp ? View.GONE : View.VISIBLE);
                 render(true);
                 if (autoDue()) refresh(null, true);
                 startAutoTimer();
@@ -327,35 +364,73 @@ public class MainActivity extends Activity {
     }
 
     // ================================================================== bottom bar
+    private boolean land, keyboardUp;
+    private int insL, insT, insR, insB;     // system bar / cutout insets
+    private View statusScrim;
+
+    private static final int NAV_H = 66, RAIL_W = 82;   // dp: the menu card's height (portrait) / width (landscape)
+
+    /** Page padding: below the status bar, clear of the floating menu card and the gesture bar. */
+    private void padPage(View col) {
+        int side = (int) (16 * dp);
+        if (land) col.setPadding(insL + (int) ((12 + RAIL_W + 14) * dp), insT + (int) (14 * dp), insR + side, insB + (int) (28 * dp));
+        else col.setPadding(insL + side, insT + (int) (14 * dp), insR + side, insB + (int) ((NAV_H + 12 + 24) * dp));
+    }
+
+    private FrameLayout.LayoutParams navParams() {
+        int m = (int) (12 * dp);
+        if (land) {
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams((int) (RAIL_W * dp), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.START | Gravity.CENTER_VERTICAL);
+            lp.setMargins(insL + m, insT + m, 0, insB + m);
+            return lp;
+        }
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (NAV_H * dp), Gravity.BOTTOM);
+        lp.setMargins(insL + (int) (14 * dp), 0, insR + (int) (14 * dp), (keyboardUp ? 0 : insB) + (int) (10 * dp));
+        return lp;
+    }
+
     private View buildNavBar() {
-        LinearLayout bar = Ui.row(this);
-        bar.setBackgroundColor(Ui.NAV);
-        bar.setPadding(0, (int) (8 * dp), 0, (int) (10 * dp));
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(land ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER);
+        GradientDrawable card = new GradientDrawable();
+        card.setColor(Ui.NAV);
+        card.setCornerRadius(28 * dp);
+        if (!Ui.LIGHT) card.setStroke(Math.max(1, (int) dp), 0x14FFFFFF);
+        bar.setBackground(card);
+        bar.setElevation(12 * dp);
+        bar.setOutlineProvider(android.view.ViewOutlineProvider.BACKGROUND);
+        bar.setClipToOutline(true);
+        if (land) bar.setPadding(0, (int) (10 * dp), 0, (int) (10 * dp));
+        else bar.setPadding((int) (4 * dp), 0, (int) (4 * dp), 0);
         for (int i = 0; i < TABS.length; i++) {
             final int idx = i;
             LinearLayout item = new LinearLayout(this);
             item.setOrientation(LinearLayout.VERTICAL);
-            item.setGravity(Gravity.CENTER_HORIZONTAL);
+            item.setGravity(Gravity.CENTER);
             FrameLayout iconBox = new FrameLayout(this);
             View pill = new View(this);
             GradientDrawable g = new GradientDrawable();
             g.setColor(Ui.NAV_PILL);
-            g.setCornerRadius(16 * dp);
+            g.setCornerRadius(15 * dp);
             pill.setBackground(g);
-            iconBox.addView(pill, new FrameLayout.LayoutParams((int) (60 * dp), (int) (32 * dp), Gravity.CENTER));
+            iconBox.addView(pill, new FrameLayout.LayoutParams((int) (54 * dp), (int) (30 * dp), Gravity.CENTER));
             NavIcon ic = new NavIcon(this, TAB_ICONS[i]);
-            iconBox.addView(ic, new FrameLayout.LayoutParams((int) (24 * dp), (int) (24 * dp), Gravity.CENTER));
-            LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams((int) (64 * dp), (int) (32 * dp));
+            iconBox.addView(ic, new FrameLayout.LayoutParams((int) (22 * dp), (int) (22 * dp), Gravity.CENTER));
+            LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams((int) (58 * dp), (int) (30 * dp));
             ilp.gravity = Gravity.CENTER_HORIZONTAL;
             item.addView(iconBox, ilp);
-            TextView label = Ui.text(this, TABS[i], 11, Ui.SUB, true);
-            label.setPadding(0, (int) (4 * dp), 0, 0);
+            TextView label = Ui.text(this, TABS[i], land ? 10 : 10.5f, Ui.SUB, true);
+            label.setPadding(0, (int) (3 * dp), 0, 0);
             label.setGravity(Gravity.CENTER);
             label.setSingleLine(true);
             item.addView(label, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
             item.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { selectTab(idx); } });
             navIcons[i] = ic; navLabels[i] = label; navPills[i] = pill;
-            bar.addView(item, Ui.weight(1));
+            if (land) {
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (58 * dp));
+                bar.addView(item, lp);
+            } else bar.addView(item, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1));
         }
         return bar;
     }
@@ -455,7 +530,7 @@ public class MainActivity extends Activity {
         scroller.setOverScrollMode(View.OVER_SCROLL_NEVER);   // no stretch effect at the edges
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding((int) (16 * dp), (int) (18 * dp), (int) (16 * dp), (int) (28 * dp));
+        padPage(col);
         scroller.addView(col);
         if (offscreen) { built = scroller; return col; }
         content.removeAllViews();

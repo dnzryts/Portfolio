@@ -56,6 +56,13 @@ public class PullRefresh extends FrameLayout {
 
     public void setListener(Listener l) { listener = l; }
 
+    /** Keeps the spinner below the status bar when the app draws full screen. */
+    public void setTopInset(int px) {
+        LayoutParams lp = (LayoutParams) spin.getLayoutParams();
+        lp.topMargin = px;
+        spin.setLayoutParams(lp);
+    }
+
     /** Content goes underneath the spinner. */
     public void setContent(View v) {
         addView(v, 0, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
