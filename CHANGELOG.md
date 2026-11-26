@@ -4,6 +4,9 @@ All notable changes to Portfolio (Android) and Portfolio for Galaxy Watch.
 Newest first. The app shows this list under More › About & what's new; it's built from
 this file by `Portfolio/tools/changelog.py`, so edit here and re-run the script.
 
+## 9.1.6 — 26 Nov 2026
+- Pressing back on the Dashboard now asks "Close Portfolio?" with Exit and Cancel, so the app isn't closed by accident (back on other tabs and pages still goes back as before)
+
 ## 9.1.5 — 26 Nov 2026
 - Swiping between pages no longer shows page content under the floating menu or the status bar: the background strips now follow both pages frame by frame as they slide
 - Forecast: a holding with a missing or zero price in its history could break the whole forecast (the middle line fell to zero and the range bands vanished); such prices are now skipped and the forecast falls back to safe defaults

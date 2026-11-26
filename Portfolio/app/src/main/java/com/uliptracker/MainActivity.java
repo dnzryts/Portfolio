@@ -353,7 +353,24 @@ public class MainActivity extends Activity {
         else if (screen != 0) { screen = 0; render(true); }
         else if (tab == 1 && scopeKind != 0) { scopeKind = 0; render(true); }
         else if (tab != 0) selectTab(0);
-        else super.onBackPressed();
+        else if (locked) super.onBackPressed();
+        else confirmExit();
+    }
+
+    private AlertDialog exitDialog;
+
+    /** Back on the Dashboard asks before closing the app. */
+    private void confirmExit() {
+        if (exitDialog != null && exitDialog.isShowing()) return;
+        exitDialog = dialog()
+                .setTitle("Close Portfolio?")
+                .setMessage("You can open it again any time from your home screen.")
+                .setPositiveButton("Exit", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int w) { finish(); }
+                })
+                .setNegativeButton("Cancel", null)
+                .create();
+        exitDialog.show();
     }
 
     private void render(final boolean animate) {
