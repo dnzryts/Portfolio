@@ -113,13 +113,17 @@ public class MainActivity extends Activity {
         // full screen: draw behind the status bar and the gesture/navigation bar
         getWindow().setStatusBarColor(0x00000000);
         getWindow().setNavigationBarColor(0x00000000);
+        // draw under every system bar, including the button bar at the side in landscape
+        if (android.os.Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false);
         if (android.os.Build.VERSION.SDK_INT >= 29) {
             getWindow().setStatusBarContrastEnforced(false);
             getWindow().setNavigationBarContrastEnforced(false);
         }
         if (android.os.Build.VERSION.SDK_INT >= 28) {
             android.view.WindowManager.LayoutParams wl = getWindow().getAttributes();
-            wl.layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            wl.layoutInDisplayCutoutMode = android.os.Build.VERSION.SDK_INT >= 30
+                    ? android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                    : android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
             getWindow().setAttributes(wl);
         }
         int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
@@ -166,18 +170,14 @@ public class MainActivity extends Activity {
         });
         root.addView(pull, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         // a soft band behind the status bar so text scrolling under the clock stays readable
-        statusScrim = new View(this);
-        statusScrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{(Ui.BG & 0x00FFFFFF) | 0xF2000000, (Ui.BG & 0x00FFFFFF) | 0xD9000000}));
+        // the strips behind the status bar and the floating menu repaint the page's own background (mood glow included),
+        // so the background runs edge to edge while content still tucks away behind them
+        statusScrim = new Backdrop(this);
         root.addView(statusScrim, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, Gravity.TOP));
-        // solid band behind the floating menu so pages don't show through around it
-        navSolid = new View(this);
-        navSolid.setBackgroundColor(Ui.BG);
+        navSolid = new Backdrop(this);
         navFade = new View(this);
-        navFade.setBackground(new GradientDrawable(land ? GradientDrawable.Orientation.LEFT_RIGHT : GradientDrawable.Orientation.BOTTOM_TOP,
-                new int[]{Ui.BG, (Ui.BG & 0x00FFFFFF) | 0xB3000000, Ui.BG & 0x00FFFFFF}));
         root.addView(navSolid, bandParams(true));
-        navFade.setVisibility(View.GONE);   // no fade above the menu: just the solid band
+        navFade.setVisibility(View.GONE);   // no fade above the menu
         root.addView(navFade, bandParams(false));
         navBar = buildNavBar();
         root.addView(navBar, navParams());
@@ -377,6 +377,24 @@ public class MainActivity extends Activity {
 
     // ================================================================== bottom bar
     private boolean land, keyboardUp;
+    /** A strip that draws the current page's background at its own screen position, so it blends in seamlessly. */
+    private class Backdrop extends View {
+        private final int[] me = new int[2], page = new int[2];
+        Backdrop(android.content.Context c) { super(c); }
+        @Override protected void onDraw(Canvas c) {
+            ScrollView s = scroller;
+            android.graphics.drawable.Drawable d = s != null ? s.getBackground() : null;
+            if (d == null || s.getWidth() == 0) { c.drawColor(Ui.BG); return; }
+            getLocationInWindow(me);
+            s.getLocationInWindow(page);
+            c.save();
+            c.translate(page[0] - me[0], page[1] - me[1]);
+            d.draw(c);
+            c.restore();
+            if (d instanceof Fx.Mood) postInvalidateDelayed(50);   // keep in step with the drifting glow
+        }
+    }
+
     private int insL, insT, insR, insB;     // system bar / cutout insets
     private View statusScrim, navSolid, navFade;
 
@@ -531,6 +549,7 @@ public class MainActivity extends Activity {
     }
 
     private void updateNav() {
+        if (statusScrim != null) { statusScrim.invalidate(); navSolid.invalidate(); }
         for (int i = 0; i < TABS.length; i++) {
             boolean on = i == tab;
             navIcons[i].setState(on ? Ui.ACCENT : Ui.SUB, on);
@@ -552,6 +571,7 @@ public class MainActivity extends Activity {
         final int y = y0;
         scroller = new ScrollView(this);
         scroller.setBackgroundColor(Ui.BG);
+        if (statusScrim != null) { statusScrim.invalidate(); navSolid.invalidate(); }
         scroller.setFillViewport(true);
         scroller.setVerticalScrollBarEnabled(false);
         scroller.setOverScrollMode(View.OVER_SCROLL_NEVER);   // no stretch effect at the edges
@@ -787,6 +807,7 @@ public class MainActivity extends Activity {
         if (mood) {
             double tv = Store.value(scope), td = Store.lastChange(scope);
             scroller.setBackground(new Fx.Mood(tv - td > 0 ? td / (tv - td) * 100 : 0));
+            if (statusScrim != null) { statusScrim.invalidate(); navSolid.invalidate(); }
         }
         buildDashboard(col, scope, animate, idx);
     }
