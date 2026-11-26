@@ -140,6 +140,7 @@ public class MainActivity extends Activity {
         final FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Ui.BG);
         content = new SwipeFrame(this);
+        content.setOnMove(new Runnable() { @Override public void run() { redrawStrips(); } });
         content.setListener(new SwipeFrame.Listener() {
             @Override public boolean canSwipe(int dir) {
                 if (locked || hiddenForRecents) return false;
@@ -386,17 +387,30 @@ public class MainActivity extends Activity {
         private final int[] me = new int[2], page = new int[2];
         Backdrop(android.content.Context c) { super(c); }
         @Override protected void onDraw(Canvas c) {
-            ScrollView s = scroller;
-            android.graphics.drawable.Drawable d = s != null ? s.getBackground() : null;
-            if (d == null || s.getWidth() == 0) { c.drawColor(Ui.BG); return; }
+            c.drawColor(Ui.BG);
+            if (content == null) return;
             getLocationInWindow(me);
-            s.getLocationInWindow(page);
-            c.save();
-            c.translate(page[0] - me[0], page[1] - me[1]);
-            d.draw(c);
-            c.restore();
-            if (d instanceof Fx.Mood) postInvalidateDelayed(50);   // keep in step with the drifting glow
+            boolean animated = false;
+            // paint every page that's on screen (two of them mid-swipe), each clipped to where that page is
+            for (int i = 0; i < content.getChildCount(); i++) {
+                View p = content.getChildAt(i);
+                android.graphics.drawable.Drawable d = p.getBackground();
+                if (d == null || p.getWidth() == 0 || p.getVisibility() != View.VISIBLE) continue;
+                p.getLocationInWindow(page);
+                c.save();
+                c.translate(page[0] - me[0], page[1] - me[1]);
+                c.clipRect(0, 0, p.getWidth(), p.getHeight());
+                d.draw(c);
+                c.restore();
+                if (d instanceof Fx.Mood) animated = true;
+            }
+            if (animated) postInvalidateDelayed(50);   // keep in step with the drifting glow
         }
+    }
+
+    /** Redraw the background strips (page changed, or pages are sliding). */
+    private void redrawStrips() {
+        if (statusScrim != null) { statusScrim.invalidate(); navSolid.invalidate(); }
     }
 
     private int insL, insT, insR, insB;     // system bar / cutout insets
@@ -553,7 +567,7 @@ public class MainActivity extends Activity {
     }
 
     private void updateNav() {
-        if (statusScrim != null) { statusScrim.invalidate(); navSolid.invalidate(); }
+        redrawStrips();
         for (int i = 0; i < TABS.length; i++) {
             boolean on = i == tab;
             navIcons[i].setState(on ? Ui.ACCENT : Ui.SUB, on);
@@ -575,7 +589,7 @@ public class MainActivity extends Activity {
         final int y = y0;
         scroller = new ScrollView(this);
         scroller.setBackgroundColor(Ui.BG);
-        if (statusScrim != null) { statusScrim.invalidate(); navSolid.invalidate(); }
+        redrawStrips();
         scroller.setFillViewport(true);
         scroller.setVerticalScrollBarEnabled(false);
         scroller.setOverScrollMode(View.OVER_SCROLL_NEVER);   // no stretch effect at the edges
@@ -811,7 +825,7 @@ public class MainActivity extends Activity {
         if (mood) {
             double tv = Store.value(scope), td = Store.lastChange(scope);
             scroller.setBackground(new Fx.Mood(tv - td > 0 ? td / (tv - td) * 100 : 0));
-            if (statusScrim != null) { statusScrim.invalidate(); navSolid.invalidate(); }
+            redrawStrips();
         }
         buildDashboard(col, scope, animate, idx);
     }

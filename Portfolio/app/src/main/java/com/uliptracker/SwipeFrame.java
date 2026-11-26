@@ -52,6 +52,10 @@ public class SwipeFrame extends FrameLayout {
 
     public void setListener(Listener l) { listener = l; }
 
+    private Runnable onMove;
+    /** Called on every frame the pages move, and when a slide ends. */
+    public void setOnMove(Runnable r) { onMove = r; }
+
     public boolean isBusy() { return dragging || animating; }
 
     private View top() { return getChildCount() > 0 ? getChildAt(getChildCount() - 1) : null; }
@@ -103,6 +107,7 @@ public class SwipeFrame extends FrameLayout {
     private void place(float t) {
         if (current != null) current.setTranslationX(t);
         if (neighbour != null) neighbour.setTranslationX(t + dir * getWidth());
+        if (onMove != null) onMove.run();
     }
 
     @Override
@@ -173,6 +178,7 @@ public class SwipeFrame extends FrameLayout {
             neighbour = null;
             if (current != null) { current.setTranslationX(0); current.setLayerType(LAYER_TYPE_NONE, null); }
         }
+        if (onMove != null) onMove.run();
     }
 
     /**

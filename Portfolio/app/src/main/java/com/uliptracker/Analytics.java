@@ -93,7 +93,7 @@ public final class Analytics {
         Double prev = null;
         for (long d = first; d <= last; d += 7) {
             Map.Entry<Long, Double> e = a.prices.floorEntry(d);
-            if (e == null) continue;
+            if (e == null || !(e.getValue() > 0) || Double.isInfinite(e.getValue())) continue;   // skip bad (zero/blank) prices
             if (prev != null && prev > 0) r.add(Math.log(e.getValue() / prev));
             prev = e.getValue();
         }
@@ -104,6 +104,7 @@ public final class Analytics {
         double v = 0;
         for (double x : r) v += (x - m) * (x - m);
         double vol = Math.sqrt(v / (r.size() - 1)) * Math.sqrt(52) * 100;
+        if (Double.isNaN(vol) || Double.isInfinite(vol)) return null;
         return Math.max(2, Math.min(70, vol));
     }
 
@@ -133,6 +134,7 @@ public final class Analytics {
             Double hv = histVol(a);
             if (hv != null) m.withHistory++;
             sd[i] = hv != null && cls[i] != FIXED ? hv : DEF_VOL[cls[i]];
+            if (Double.isNaN(mu[i]) || Double.isInfinite(mu[i])) mu[i] = classRet[cls[i]];
             stock[i] = a.type == Store.STOCK;
             w[i] = v;
             m.byClass[cls[i]] += v;
@@ -151,6 +153,8 @@ public final class Analytics {
             }
         }
         m.sigma = Math.sqrt(Math.max(0, var));
+        if (Double.isNaN(m.sigma) || Double.isInfinite(m.sigma)) m.sigma = DEF_VOL[EQUITY];
+        if (Double.isNaN(m.mu) || Double.isInfinite(m.mu)) m.mu = classRet[EQUITY];
         for (int c = 0; c < CLASS_NAMES.length; c++) m.equityShare += m.byClass[c] / m.value * EQ_SHARE[c] * 100;
         return m;
     }
@@ -225,6 +229,8 @@ public final class Analytics {
      */
     public static Forecast simulate(double start, double monthly, double stepUp, double mu, double sigma, int paths, long seed) {
         Forecast f = new Forecast(start, monthly, stepUp, mu, sigma, paths);
+        if (Double.isNaN(sigma) || Double.isInfinite(sigma) || sigma < 0) sigma = 15;
+        if (Double.isNaN(mu) || Double.isInfinite(mu) || mu <= -99) mu = 0;
         double s = sigma / 100, m = Math.log(1 + mu / 100);
         double drift = (m - s * s / 2) / 12, vol = s / Math.sqrt(12);
         Random rnd = new Random(seed);
