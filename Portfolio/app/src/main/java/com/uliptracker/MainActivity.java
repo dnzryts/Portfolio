@@ -1144,7 +1144,7 @@ public class MainActivity extends Activity {
 
     // ================================================================== More tab
     private void showMore(boolean animate) {
-        LinearLayout col = page(false);
+        LinearLayout col = page(!animate);      // settings changes redraw in place, keeping the scroll position
         int idx = 0;
         add(col, header("More", false, false, null), idx++, animate);
         col.addView(Ui.space(this, 14));
@@ -1177,7 +1177,7 @@ public class MainActivity extends Activity {
         pc.setPadding(0, (int) (4 * dp), 0, (int) (4 * dp));
         pc.addView(switchRow("Hide amounts now", "Same as the eye button. Hides amounts and units, keeps % and charts",
                 Ui.PRIVATE, true, new Toggle() {
-                    @Override public void set(boolean on) { Ui.PRIVATE = on; ui.post(new Runnable() { @Override public void run() { render(false); } }); }
+                    @Override public void set(boolean on) { Ui.PRIVATE = on; renderAfterToggle(); }
                 }));
         pc.addView(divider());
         pc.addView(switchRow("Start in privacy mode", "Amounts stay hidden every time the app opens, until you tap the eye",
@@ -1351,8 +1351,8 @@ public class MainActivity extends Activity {
                         // confirm with the fingerprint before changing it either way
                         authInProgress = true;
                         Lock.authenticate(MainActivity.this, on ? "Turn on fingerprint lock" : "Turn off fingerprint lock", new Lock.Result() {
-                            @Override public void ok() { authInProgress = false; Lock.setEnabled(MainActivity.this, on); toast(on ? "App lock on" : "App lock off"); ui.post(new Runnable() { @Override public void run() { render(false); } }); }
-                            @Override public void fail(String why) { authInProgress = false; ui.post(new Runnable() { @Override public void run() { render(false); } }); }
+                            @Override public void ok() { authInProgress = false; Lock.setEnabled(MainActivity.this, on); toast(on ? "App lock on" : "App lock off"); renderAfterToggle(); }
+                            @Override public void fail(String why) { authInProgress = false; renderAfterToggle(); }
                         });
                     }
                 }));
@@ -1375,7 +1375,7 @@ public class MainActivity extends Activity {
                         String err = Alerts.schedule(MainActivity.this);
                         if (err != null) toast("Background checks unavailable: " + err);
                         if (on) askNotificationPermission();
-                        ui.post(new Runnable() { @Override public void run() { render(false); } });
+                        renderAfterToggle();
                     }
                 }));
         if (al) {
@@ -1412,7 +1412,7 @@ public class MainActivity extends Activity {
                 @Override public void on(int i) {
                     Alerts.prefs(MainActivity.this).edit().putInt("interval", iv[i]).apply();
                     Alerts.schedule(MainActivity.this);
-                    ui.post(new Runnable() { @Override public void run() { render(false); } });
+                    renderAfterToggle();
                 }
             }, true));
             th.addView(Ui.space(this, 10));
@@ -5672,7 +5672,7 @@ public class MainActivity extends Activity {
                     @Override public void set(boolean on) {
                         Alerts.prefs(MainActivity.this).edit().putBoolean("watch_sync", on).apply();
                         if (on) startWatchSync(true); else watchServer.stop();
-                        ui.post(new Runnable() { @Override public void run() { render(false); } });
+                        renderAfterToggle();
                     }
                 }));
         c.addView(divider());
@@ -5851,7 +5851,7 @@ public class MainActivity extends Activity {
                 moodOn(), true, new Toggle() {
                     @Override public void set(boolean on) {
                         Alerts.prefs(MainActivity.this).edit().putBoolean("mood", on).apply();
-                        ui.post(new Runnable() { @Override public void run() { render(false); } });
+                        renderAfterToggle();
                     }
                 }));
         c.addView(divider());
@@ -5860,7 +5860,7 @@ public class MainActivity extends Activity {
                     @Override public void set(boolean on) {
                         CardStack.TILT = on;
                         Alerts.prefs(MainActivity.this).edit().putBoolean("tilt", on).apply();
-                        ui.post(new Runnable() { @Override public void run() { render(false); } });
+                        renderAfterToggle();
                     }
                 }));
         c.addView(divider());
@@ -5868,7 +5868,7 @@ public class MainActivity extends Activity {
                 Alerts.prefs(this).getBoolean("amoled", false), true, new Toggle() {
                     @Override public void set(boolean on) {
                         Alerts.prefs(MainActivity.this).edit().putBoolean("amoled", on).apply();
-                        ui.post(new Runnable() { @Override public void run() { recreate(); } });
+                        ui.postDelayed(new Runnable() { @Override public void run() { recreate(); } }, 280);
                     }
                 }));
         return c;
@@ -6395,7 +6395,7 @@ public class MainActivity extends Activity {
                     Alerts.autoMarketOnly(this), true, new Toggle() {
                         @Override public void set(boolean on) {
                             Alerts.prefs(MainActivity.this).edit().putBoolean("autoMarket", on).apply();
-                            ui.post(new Runnable() { @Override public void run() { render(false); } });
+                            renderAfterToggle();
                         }
                     }));
             c.addView(divider());
@@ -6428,4 +6428,13 @@ public class MainActivity extends Activity {
             @Override public void onClick(DialogInterface d, int w) { setAutoMin(AUTO_MIN[w]); }
         }).show();
     }
+
+
+    /** Redraw after a switch has finished sliding, so it visibly turns on/off in place (the scroll position is kept). */
+    private void renderAfterToggle() {
+        ui.removeCallbacks(toggleRender);
+        ui.postDelayed(toggleRender, 280);
+    }
+
+    private final Runnable toggleRender = new Runnable() { @Override public void run() { render(false); } };
 }

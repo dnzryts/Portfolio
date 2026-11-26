@@ -4,6 +4,10 @@ All notable changes to Portfolio (Android) and Portfolio for Galaxy Watch.
 Newest first. The app shows this list under More › About & what's new; it's built from
 this file by `Portfolio/tools/changelog.py`, so edit here and re-run the script.
 
+## 9.0.2 — 26 Nov 2026
+- Settings (More) now stay where you are when you flip a switch or pick an option; the page no longer jumps to the top
+- Switches slide on and off in place before anything that depends on them updates
+
 ## 9.0.1 — 26 Nov 2026
 - Changing an option no longer jumps to the top of the page: profile, filter, list layout and Analytics section buttons redraw in place
 - After changing the theme or Pure black, the page opens where you were, without the entrance animation
