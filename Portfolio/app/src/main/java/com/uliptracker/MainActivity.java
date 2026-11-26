@@ -2069,10 +2069,10 @@ public class MainActivity extends Activity {
 
             if (a.type == Store.ULIP) add(col, ulipLinkCard(a), idx++, animate);
             LinearLayout actions = Ui.row(this);
-            TextView addp = Ui.button(this, a.type == Store.ULIP ? (a.navSymbol.isEmpty() ? "Add NAV" : "Refresh NAV") : "Refresh price", true);
+            TextView addp = Ui.button(this, a.type == Store.ULIP ? (a.fetchCode().isEmpty() ? "Add NAV" : "Refresh NAV") : "Refresh price", true);
             addp.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View vv) {
-                    if (a.type == Store.ULIP && a.navSymbol.isEmpty()) addPriceManual(a, LocalDate.now()); else refresh(a);
+                    if (a.type == Store.ULIP && a.fetchCode().isEmpty()) addPriceManual(a, LocalDate.now()); else refresh(a);
                 }
             });
             TextView del = Ui.button(this, "Remove", false);
@@ -6035,36 +6035,130 @@ public class MainActivity extends Activity {
 
     private int ulipLinkedCount() {
         List<String> done = new ArrayList<>();
-        for (Store.Asset a : store.assets) if (a.type == Store.ULIP && !a.hidden && !a.navSymbol.isEmpty() && !done.contains(a.name)) done.add(a.name);
+        for (Store.Asset a : store.assets) if (a.type == Store.ULIP && !a.hidden && !a.fetchCode().isEmpty() && !done.contains(a.name)) done.add(a.name);
         return done.size();
     }
 
     private View ulipLinkCard(final Store.Asset a) {
         LinearLayout c = Ui.card(this);
-        if (a.navSymbol.isEmpty()) {
+        if (a.navSymbol.isEmpty() && a.navUrl.isEmpty()) {
             c.addView(Ui.text(this, "📝  NAV from paste", 15, Ui.TEXT, true));
-            c.addView(Ui.text(this, "Link this fund to its online listing and its NAV will update every business day, like your mutual funds.", 12, Ui.SUB, false));
-            TextView l = Ui.text(this, "Find it online  ›", 14, Ui.ACCENT, true);
-            l.setPadding(0, (int) (8 * dp), 0, 0);
-            c.addView(l);
-            c.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { linkUlips(); } });
+            c.addView(Ui.text(this, "Link this fund and its NAV will update every business day, like your mutual funds.", 12, Ui.SUB, false));
+            TextView y = Ui.text(this, "Find it online  ›", 14, Ui.ACCENT, true);
+            y.setPadding(0, (int) (10 * dp), 0, (int) (4 * dp));
+            y.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { linkUlips(); } });
+            c.addView(y);
+            TextView w = Ui.text(this, "Use a web page link (e.g. Moneycontrol)  ›", 14, Ui.ACCENT, true);
+            w.setPadding(0, (int) (6 * dp), 0, 0);
+            w.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { webLinkDialog(a); } });
+            c.addView(w);
         } else {
-            c.addView(Ui.text(this, "🔗  NAV updates online", 15, Ui.TEXT, true));
-            c.addView(Ui.text(this, "From Yahoo Finance (" + a.navSymbol + "), once each business day after SBI Life publishes it. "
-                    + "Pasting still works and fills any gaps.", 12, Ui.SUB, false));
+            boolean web = a.navSymbol.isEmpty();
+            String host = a.navUrl;
+            try { host = new java.net.URL(a.navUrl).getHost().replaceFirst("^www\\.", ""); } catch (Exception ignored) { }
+            c.addView(Ui.text(this, web ? "🔗  NAV from " + host : "🔗  NAV updates online", 15, Ui.TEXT, true));
+            c.addView(Ui.text(this, (web ? "The app reads the NAV from that page"
+                    : "From Yahoo Finance (" + a.navSymbol + ")") + " on each refresh, once each business day after SBI Life publishes it. "
+                    + "Pasting still works and fills any gaps." + (a.error != null ? "\nLast try: " + a.error : ""), 12, a.error != null ? Ui.RED : Ui.SUB, false));
+            LinearLayout r = Ui.row(this);
+            r.setPadding(0, (int) (10 * dp), 0, 0);
+            if (web) {
+                TextView ch = Ui.text(this, "Change link", 14, Ui.ACCENT, true);
+                ch.setPadding(0, 0, (int) (24 * dp), 0);
+                ch.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { webLinkDialog(a); } });
+                r.addView(ch);
+            }
             TextView u = Ui.text(this, "Unlink", 14, Ui.ACCENT, true);
-            u.setPadding(0, (int) (8 * dp), 0, 0);
             u.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) {
-                    for (Store.Asset x : store.assets) if (x.type == Store.ULIP && x.name.equals(a.name)) x.navSymbol = "";
+                    for (Store.Asset x : store.assets) if (x.type == Store.ULIP && x.name.equals(a.name)) { x.navSymbol = ""; x.navUrl = ""; x.error = null; }
                     store.save();
                     toast(a.name + " goes back to pasted NAVs");
                     render(false);
                 }
             });
-            c.addView(u);
+            r.addView(u);
+            c.addView(r);
         }
         return c;
+    }
+
+    /** Link a ULIP fund to a web page that shows its NAV; checks the page and asks before linking. */
+    private void webLinkDialog(final Store.Asset a) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.addView(Ui.text(this, "Open the fund's page in your browser (for example on Moneycontrol), copy the link and paste it here.", 12, Ui.SUB, false));
+        final EditText url = new EditText(this);
+        url.setHint("https://www.moneycontrol.com/insurance/ulip/…");
+        url.setSingleLine(true);
+        url.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        String pre = a.navUrl;
+        try {
+            android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            if (pre.isEmpty() && cm != null && cm.hasPrimaryClip()) {
+                CharSequence t = cm.getPrimaryClip().getItemAt(0).coerceToText(this);
+                if (t != null && t.toString().trim().startsWith("http")) pre = t.toString().trim();
+            }
+        } catch (Exception ignored) { }
+        url.setText(pre);
+        box.addView(url);
+        dialog().setTitle(a.name + ": NAV page").setView(padded(box))
+                .setPositiveButton("Check page", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int w) {
+                        String u = url.getText().toString().trim();
+                        // links pasted with trailing punctuation (",,") still work
+                        u = u.replaceAll("[,;\\s]+$", "");
+                        if (!u.startsWith("http")) { toast("Paste a link that starts with http"); return; }
+                        checkWebLink(a, u);
+                    }
+                }).setNegativeButton("Cancel", null).show();
+    }
+
+    private void checkWebLink(final Store.Asset a, final String u) {
+        Map.Entry<Long, Double> l = a.latest();
+        final Double mine = l == null ? null : l.getValue();
+        final long mineDay = l == null ? -1 : l.getKey();
+        toast("Reading the page…");
+        exec.execute(new Runnable() {
+            @Override public void run() {
+                PageNav.Found f = null;
+                String err = null;
+                try { f = Net.pageNav(u, mine); } catch (Throwable t) { err = t.getMessage(); }
+                final PageNav.Found ff = f;
+                final String fe = err;
+                ui.post(new Runnable() {
+                    @Override public void run() {
+                        if (isFinishing()) return;
+                        if (ff == null) {
+                            dialog().setTitle("No NAV found").setMessage(fe != null ? "Couldn't open the page: " + fe
+                                    : mine != null ? "The page didn't show a NAV close to your last one (" + String.format(Locale.US, "%.4f", mine)
+                                    + "). Check it's the page for " + a.name + "." : "Couldn't find a NAV on that page.")
+                                    .setPositiveButton("OK", null).show();
+                            return;
+                        }
+                        java.time.format.DateTimeFormatter df = java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", Locale.US);
+                        String msg = "NAV on the page: " + String.format(Locale.US, "%.4f", ff.nav)
+                                + (ff.day >= 0 ? " · " + LocalDate.ofEpochDay(ff.day).format(df) : " · no date shown (today's date will be used)")
+                                + (mine != null ? "\nYour last NAV: " + String.format(Locale.US, "%.4f", mine) + " · " + LocalDate.ofEpochDay(mineDay).format(df) : "")
+                                + (ff.context.isEmpty() ? "" : "\n\nFrom the page: \u201c" + ff.context + "\u201d")
+                                + "\n\nLink " + a.name + " to this page?";
+                        dialog().setTitle("Found the NAV").setMessage(msg)
+                                .setPositiveButton("Link", new DialogInterface.OnClickListener() {
+                                    @Override public void onClick(DialogInterface d, int w) {
+                                        for (Store.Asset x : store.assets)
+                                            if (x.type == Store.ULIP && x.name.equals(a.name)) {
+                                                x.navUrl = u; x.navSymbol = ""; x.error = null;
+                                                x.prices.put(ff.day >= 0 ? ff.day : LocalDate.now().toEpochDay(), ff.nav);
+                                            }
+                                        store.save();
+                                        toast(a.name + " will now update from this page");
+                                        render(false);
+                                    }
+                                }).setNegativeButton("Cancel", null).show();
+                    }
+                });
+            }
+        });
     }
 
     /** One row of the link review: a fund, what was found online, and whether to link it. */
@@ -6166,7 +6260,7 @@ public class MainActivity extends Activity {
                         t.addView(Ui.text(MainActivity.this, line, 12, ok ? Ui.GREEN : Ui.RED, false));
                         if (!ok) t.addView(Ui.text(MainActivity.this, "Very different from yours: check it's the same fund", 11, Ui.RED, false));
                     } else {
-                        t.addView(Ui.text(MainActivity.this, m.all.isEmpty() ? "Not found online · keep pasting" : "No exact match · tap to choose from " + m.all.size(),
+                        t.addView(Ui.text(MainActivity.this, m.all.isEmpty() ? "Not found on Yahoo · use a web page link on the fund's page" : "No exact match · tap to choose from " + m.all.size(),
                                 12, m.all.isEmpty() ? Ui.SUB : Ui.ACCENT, false));
                     }
                     if (!m.all.isEmpty()) t.setOnClickListener(new View.OnClickListener() {
@@ -6186,7 +6280,11 @@ public class MainActivity extends Activity {
                         int n = 0;
                         for (UlipMatch m : rows) {
                             for (Store.Asset a : store.assets)
-                                if (a.type == Store.ULIP && a.name.equals(m.fund)) a.navSymbol = m.pick && m.symbol != null && m.online != null ? m.symbol : "";
+                                if (a.type == Store.ULIP && a.name.equals(m.fund)) {
+                                    boolean link = m.pick && m.symbol != null && m.online != null;
+                                    if (link) { a.navSymbol = m.symbol; a.navUrl = ""; }
+                                    else if (!a.navSymbol.isEmpty()) a.navSymbol = "";     // unticked: stop using Yahoo (a web link stays)
+                                }
                             if (m.pick && m.symbol != null && m.online != null) n++;
                         }
                         store.save();

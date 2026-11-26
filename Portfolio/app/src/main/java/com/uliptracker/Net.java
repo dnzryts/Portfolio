@@ -48,6 +48,27 @@ public final class Net {
         } finally { c.disconnect(); }
     }
 
+    /** Reads a fund's NAV from an ordinary web page (e.g. Moneycontrol). */
+    public static PageNav.Found pageNav(String url, Double anchor) throws IOException {
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        c.setConnectTimeout(15000);
+        c.setReadTimeout(20000);
+        c.setInstanceFollowRedirects(true);
+        c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Mobile Safari/537.36");
+        c.setRequestProperty("Accept", "text/html,application/xhtml+xml,*/*;q=0.8");
+        c.setRequestProperty("Accept-Language", "en-IN,en;q=0.9");
+        try {
+            int code = c.getResponseCode();
+            if (code != 200) throw new IOException("The page answered HTTP " + code);
+            InputStream in = c.getInputStream();
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            byte[] b = new byte[16384];
+            int n;
+            while ((n = in.read(b)) > 0 && bo.size() < 4_000_000) bo.write(b, 0, n);
+            return PageNav.extract(new String(bo.toByteArray(), StandardCharsets.UTF_8), anchor);
+        } finally { c.disconnect(); }
+    }
+
     static String enc(String s) {
         try { return URLEncoder.encode(s, "UTF-8"); } catch (Exception e) { return s; }
     }

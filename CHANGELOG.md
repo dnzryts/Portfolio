@@ -4,6 +4,12 @@ All notable changes to Portfolio (Android) and Portfolio for Galaxy Watch.
 Newest first. The app shows this list under More › About & what's new; it's built from
 this file by `Portfolio/tools/changelog.py`, so edit here and re-run the script.
 
+## 8.9 — 26 Nov 2026
+- Link a ULIP fund to any web page that shows its NAV, such as its Moneycontrol page: open the fund › Use a web page link
+- The app checks the page first and shows the NAV and date it found next to your last NAV before linking
+- Linked pages are read on every refresh; a page whose NAV is far from yours is ignored, so a wrong or changed page can't overwrite your values
+- The fund page shows where its NAV comes from, with Change link and Unlink
+
 ## 8.8 — 26 Nov 2026
 - ULIP NAVs can update online: More › Auto-update ULIP NAVs finds your SBI Life funds on Yahoo Finance and updates them every business day, like mutual funds
 - You confirm each match first, with the online NAV shown next to your last pasted one; very different values are flagged

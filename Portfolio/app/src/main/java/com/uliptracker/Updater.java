@@ -37,7 +37,10 @@ public final class Updater {
     /** Symbols to fetch: "type:code" -> [type, code]. Build on the owner thread, then pass to fetch(). */
     public static Map<String, String[]> symbols(List<Store.Asset> todo) {
         Map<String, String[]> m = new HashMap<>();
-        for (Store.Asset a : todo) m.put(a.type + ":" + a.fetchCode(), new String[]{String.valueOf(a.type), a.fetchCode()});
+        for (Store.Asset a : todo) {
+            java.util.Map.Entry<Long, Double> l = a.latest();      // a web page is read relative to the last NAV
+            m.put(a.type + ":" + a.fetchCode(), new String[]{String.valueOf(a.type), a.fetchCode(), l == null ? "" : String.valueOf(l.getValue())});
+        }
         return m;
     }
 
@@ -51,7 +54,13 @@ public final class Updater {
             try {
                 int type = Integer.parseInt(e.getValue()[0]);
                 String code = e.getValue()[1];
-                if (type == Store.MF) { String[] m = Net.mfHistoryMeta(code, fresh); r.name = m[0]; r.category = m[1]; }
+                if (code.startsWith("http")) {             // a ULIP fund linked to a web page
+                    String an = e.getValue().length > 2 ? e.getValue()[2] : "";
+                    PageNav.Found f = Net.pageNav(code, an.isEmpty() ? null : Double.valueOf(an));
+                    if (f == null) throw new java.io.IOException("No NAV found on the page");
+                    fresh.put(f.day >= 0 ? f.day : java.time.LocalDate.now().toEpochDay(), f.nav);
+                }
+                else if (type == Store.MF) { String[] m = Net.mfHistoryMeta(code, fresh); r.name = m[0]; r.category = m[1]; }
                 else { Net.LAST_CCY.set(null); r.name = Net.stockHistory(code, fresh); r.currency = Net.LAST_CCY.get(); }
                 r.prices = fresh;
             } catch (Throwable ex) {
