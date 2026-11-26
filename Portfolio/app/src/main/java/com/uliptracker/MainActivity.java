@@ -110,7 +110,10 @@ public class MainActivity extends Activity {
             if (b.getBoolean("unlocked", false)) stoppedAt = b.getLong("visibleAt", 0);
             pendingScrollY = b.getInt("scrollY", 0);
         }
-        // full screen: draw behind the status bar and the gesture/navigation bar
+        // full screen: draw behind the status bar and the gesture/navigation bar.
+        // Build the window first: building it reloads the theme defaults (including the scrim Android paints
+        // behind the 3-button bar), which would undo the settings below.
+        getWindow().getDecorView();
         getWindow().setStatusBarColor(0x00000000);
         getWindow().setNavigationBarColor(0x00000000);
         getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
@@ -180,9 +183,8 @@ public class MainActivity extends Activity {
         statusScrim = new Backdrop(this);
         root.addView(statusScrim, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, Gravity.TOP));
         navSolid = new Backdrop(this);
-        navFade = new View(this);
+        navFade = new Backdrop(this, true);
         root.addView(navSolid, bandParams(true));
-        navFade.setVisibility(View.GONE);   // no fade above the menu
         root.addView(navFade, bandParams(false));
         navBar = buildNavBar();
         root.addView(navBar, navParams());
@@ -193,7 +195,7 @@ public class MainActivity extends Activity {
                 boolean kb = bt - in.getStableInsetBottom() > 100 * dp;
                 keyboardUp = kb;
                 if (!locked && !hiddenForRecents) navBar.setVisibility(kb ? View.GONE : View.VISIBLE);
-                if (navSolid != null) { navSolid.setVisibility(kb ? View.GONE : View.VISIBLE); }
+                if (navSolid != null) { navSolid.setVisibility(kb ? View.GONE : View.VISIBLE); navFade.setVisibility(kb ? View.GONE : View.VISIBLE); }
                 if (android.os.Build.VERSION.SDK_INT >= 28 && in.getDisplayCutout() != null) {
                     android.view.DisplayCutout dc = in.getDisplayCutout();
                     l = Math.max(l, dc.getSafeInsetLeft()); r = Math.max(r, dc.getSafeInsetRight()); t = Math.max(t, dc.getSafeInsetTop());
@@ -402,24 +404,45 @@ public class MainActivity extends Activity {
     /** A strip that draws the current page's background at its own screen position, so it blends in seamlessly. */
     private class Backdrop extends View {
         private final int[] me = new int[2], page = new int[2];
-        Backdrop(android.content.Context c) { super(c); }
+        private final boolean fade;     // true: fades out toward the page (the soft edge above the menu)
+        private final android.graphics.Paint mask = new android.graphics.Paint();
+        Backdrop(android.content.Context c) { this(c, false); }
+        Backdrop(android.content.Context c, boolean fade) {
+            super(c);
+            this.fade = fade;
+            if (fade) {
+                mask.setXfermode(new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN));
+                setLayerType(LAYER_TYPE_HARDWARE, null);
+            }
+        }
         @Override protected void onDraw(Canvas c) {
+            int w = getWidth(), h = getHeight();
+            if (fade) c.saveLayer(0, 0, w, h, null);
             c.drawColor(Ui.BG);
-            if (content == null) return;
-            getLocationInWindow(me);
             boolean animated = false;
-            // paint every page that's on screen (two of them mid-swipe), each clipped to where that page is
-            for (int i = 0; i < content.getChildCount(); i++) {
-                View p = content.getChildAt(i);
-                android.graphics.drawable.Drawable d = p.getBackground();
-                if (d == null || p.getWidth() == 0 || p.getVisibility() != View.VISIBLE) continue;
-                p.getLocationInWindow(page);
-                c.save();
-                c.translate(page[0] - me[0], page[1] - me[1]);
-                c.clipRect(0, 0, p.getWidth(), p.getHeight());
-                d.draw(c);
+            if (content != null) {
+                getLocationInWindow(me);
+                // paint every page that's on screen (two of them mid-swipe), each clipped to where that page is
+                for (int i = 0; i < content.getChildCount(); i++) {
+                    View p = content.getChildAt(i);
+                    android.graphics.drawable.Drawable d = p.getBackground();
+                    if (d == null || p.getWidth() == 0 || p.getVisibility() != View.VISIBLE) continue;
+                    p.getLocationInWindow(page);
+                    c.save();
+                    c.translate(page[0] - me[0], page[1] - me[1]);
+                    c.clipRect(0, 0, p.getWidth(), p.getHeight());
+                    d.draw(c);
+                    c.restore();
+                    if (d instanceof Fx.Mood) animated = true;
+                }
+            }
+            if (fade) {
+                // opaque next to the menu, clear toward the page
+                boolean side = land;
+                mask.setShader(new android.graphics.LinearGradient(side ? 0 : 0, side ? 0 : h, side ? w : 0, 0,
+                        new int[]{0xFF000000, 0xB0000000, 0x00000000}, new float[]{0f, 0.45f, 1f}, android.graphics.Shader.TileMode.CLAMP));
+                c.drawRect(0, 0, w, h, mask);
                 c.restore();
-                if (d instanceof Fx.Mood) animated = true;
             }
             if (animated) postInvalidateDelayed(50);   // keep in step with the drifting glow
         }
@@ -427,7 +450,7 @@ public class MainActivity extends Activity {
 
     /** Redraw the background strips (page changed, or pages are sliding). */
     private void redrawStrips() {
-        if (statusScrim != null) { statusScrim.invalidate(); navSolid.invalidate(); }
+        if (statusScrim != null) { statusScrim.invalidate(); navSolid.invalidate(); navFade.invalidate(); }
     }
 
     private int insL, insT, insR, insB;     // system bar / cutout insets
@@ -435,7 +458,7 @@ public class MainActivity extends Activity {
 
     /** The solid band (or its fade) behind the floating menu: along the bottom in portrait, the left side in landscape. */
     private FrameLayout.LayoutParams bandParams(boolean solid) {
-        int fade = (int) (22 * dp);
+        int fade = (int) (18 * dp);
         if (land) {
             int w = insL + (int) ((12 + RAIL_W) * dp);
             FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(solid ? w : fade, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.START);

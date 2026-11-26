@@ -4,6 +4,10 @@ All notable changes to Portfolio (Android) and Portfolio for Galaxy Watch.
 Newest first. The app shows this list under More › About & what's new; it's built from
 this file by `Portfolio/tools/changelog.py`, so edit here and re-run the script.
 
+## 9.1.7 — 26 Nov 2026
+- The strip under the floating menu now matches the page in light and dark themes; Android was painting its own white or black bar behind the phone's buttons
+- Content now fades out softly just above the menu, which floats over the page background like a card
+
 ## 9.1.6 — 26 Nov 2026
 - Pressing back on the Dashboard now asks "Close Portfolio?" with Exit and Cancel, so the app isn't closed by accident (back on other tabs and pages still goes back as before)
 
