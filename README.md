@@ -3,7 +3,7 @@
 Two Android apps, written in plain Java on the Android framework only (no AndroidX or other
 libraries). Each folder is an Android Studio project and also includes the APK built from it.
 
-## Portfolio (`Portfolio/`, package `com.uliptracker`, v8.7.1)
+## Portfolio (`Portfolio/`, package `com.uliptracker`, v8.8)
 
 | File | What it does |
 |---|---|
@@ -25,6 +25,7 @@ libraries). Each folder is an Android Studio project and also includes the APK b
 | `TreemapView.java` | Heat-map of holdings (squarified treemap) |
 | `Avatars.java`, `Seasons.java` | Profile pictures for you and family members; festival and finance-day greetings |
 | `Changelog.java` | Release history for More › About & what's new; generated from `CHANGELOG.md` by `tools/changelog.py` |
+| `UlipLink.java` | Matches ULIP fund names to their SBI Life listings online (Yahoo Finance) |
 | `AppDialog.java` | Every pop-up in the app's style: rounded card, app fonts, pill buttons, filled text fields, rich menu rows |
 | `PullRefresh.java` | Pull down from the top of a page to refresh prices |
 | `WatchLink.java` | Phone ⇄ watch sync over Bluetooth (secure RFCOMM between the paired devices) |

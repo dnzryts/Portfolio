@@ -1260,7 +1260,9 @@ public class MainActivity extends Activity {
         col.addView(Ui.space(this, 6));
         String[][] items = {
                 {"Paste SBI Life ULIP NAVs", "Update all ULIP fund NAVs from copied text"},
-                {"Refresh all prices", "Stocks, mutual funds and indexes"},
+                {"Auto-update ULIP NAVs", ulipLinkedCount() > 0 ? ulipLinkedCount() + " of " + ulipNames().size() + " funds update online every day"
+                        : "Find your SBI Life funds online so NAVs update by themselves"},
+                {"Refresh all prices", "Stocks, mutual funds, indexes and linked ULIP funds"},
                 {"SBI Life policy: amount invested", store.ulipInvested > 0 ? Ui.rupees(store.ulipInvested) : "Not set"},
                 {"Show / hide holdings", store.assets.size() + " holdings"},
                 {"Rename a platform", store.platforms().size() + " platforms"},
@@ -1272,7 +1274,7 @@ public class MainActivity extends Activity {
         LinearLayout card = Ui.card(this);
         card.setPadding(0, (int) (4 * dp), 0, (int) (4 * dp));
         for (int i = 0; i < items.length; i++) {
-            final int which = i;
+            final int which = i == 0 ? 0 : i == 1 ? 100 : i - 1;     // row 1 is the ULIP auto-update link
             LinearLayout r = new LinearLayout(this);
             r.setOrientation(LinearLayout.VERTICAL);
             r.setPadding((int) (18 * dp), (int) (13 * dp), (int) (18 * dp), (int) (13 * dp));
@@ -1430,6 +1432,7 @@ public class MainActivity extends Activity {
 
     private void moreAction(int which) {
         switch (which) {
+            case 100: linkUlips(); break;
             case 0: showPaste(null); break;
             case 1: refresh(null, false); break;
             case 2: editUlipInvested(); break;
@@ -2064,11 +2067,12 @@ public class MainActivity extends Activity {
 
             add(col, ledgerCard(a), idx++, animate);
 
+            if (a.type == Store.ULIP) add(col, ulipLinkCard(a), idx++, animate);
             LinearLayout actions = Ui.row(this);
-            TextView addp = Ui.button(this, a.type == Store.ULIP ? "Add NAV" : "Refresh price", true);
+            TextView addp = Ui.button(this, a.type == Store.ULIP ? (a.navSymbol.isEmpty() ? "Add NAV" : "Refresh NAV") : "Refresh price", true);
             addp.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View vv) {
-                    if (a.type == Store.ULIP) addPriceManual(a, LocalDate.now()); else refresh(a);
+                    if (a.type == Store.ULIP && a.navSymbol.isEmpty()) addPriceManual(a, LocalDate.now()); else refresh(a);
                 }
             });
             TextView del = Ui.button(this, "Remove", false);
@@ -6019,5 +6023,193 @@ public class MainActivity extends Activity {
                         }).show();
             }
         }, 2200);
+    }
+
+
+    // ================================================================== ULIP NAVs online
+    private List<String> ulipNames() {
+        List<String> n = new ArrayList<>();
+        for (Store.Asset a : store.assets) if (a.type == Store.ULIP && !a.hidden && !n.contains(a.name)) n.add(a.name);
+        return n;
+    }
+
+    private int ulipLinkedCount() {
+        List<String> done = new ArrayList<>();
+        for (Store.Asset a : store.assets) if (a.type == Store.ULIP && !a.hidden && !a.navSymbol.isEmpty() && !done.contains(a.name)) done.add(a.name);
+        return done.size();
+    }
+
+    private View ulipLinkCard(final Store.Asset a) {
+        LinearLayout c = Ui.card(this);
+        if (a.navSymbol.isEmpty()) {
+            c.addView(Ui.text(this, "📝  NAV from paste", 15, Ui.TEXT, true));
+            c.addView(Ui.text(this, "Link this fund to its online listing and its NAV will update every business day, like your mutual funds.", 12, Ui.SUB, false));
+            TextView l = Ui.text(this, "Find it online  ›", 14, Ui.ACCENT, true);
+            l.setPadding(0, (int) (8 * dp), 0, 0);
+            c.addView(l);
+            c.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { linkUlips(); } });
+        } else {
+            c.addView(Ui.text(this, "🔗  NAV updates online", 15, Ui.TEXT, true));
+            c.addView(Ui.text(this, "From Yahoo Finance (" + a.navSymbol + "), once each business day after SBI Life publishes it. "
+                    + "Pasting still works and fills any gaps.", 12, Ui.SUB, false));
+            TextView u = Ui.text(this, "Unlink", 14, Ui.ACCENT, true);
+            u.setPadding(0, (int) (8 * dp), 0, 0);
+            u.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    for (Store.Asset x : store.assets) if (x.type == Store.ULIP && x.name.equals(a.name)) x.navSymbol = "";
+                    store.save();
+                    toast(a.name + " goes back to pasted NAVs");
+                    render(false);
+                }
+            });
+            c.addView(u);
+        }
+        return c;
+    }
+
+    /** One row of the link review: a fund, what was found online, and whether to link it. */
+    private static class UlipMatch {
+        String fund, symbol, listing; Double online, mine; long onlineDay, mineDay; boolean pick;
+        List<String[]> all = new ArrayList<>();
+    }
+
+    /** Looks up each ULIP fund online, then lets the person confirm the matches. */
+    private void linkUlips() {
+        final List<String> names = ulipNames();
+        if (names.isEmpty()) { toast("No ULIP funds to link"); return; }
+        final List<UlipMatch> rows = new ArrayList<>();
+        for (String n : names) {
+            UlipMatch m = new UlipMatch();
+            m.fund = n;
+            for (Store.Asset a : store.assets)
+                if (a.type == Store.ULIP && a.name.equals(n)) {
+                    Map.Entry<Long, Double> l = a.latest();
+                    if (l != null && (m.mine == null || l.getKey() > m.mineDay)) { m.mine = l.getValue(); m.mineDay = l.getKey(); }
+                    if (!a.navSymbol.isEmpty()) m.symbol = a.navSymbol;
+                }
+            rows.add(m);
+        }
+        toast("Looking up your SBI Life funds…");
+        exec.execute(new Runnable() {
+            @Override public void run() {
+                String err = null;
+                for (UlipMatch m : rows) {
+                    try {
+                        m.all = Net.ulipSearch(m.fund);
+                        String[] hit = null;
+                        if (m.symbol != null) for (String[] f : m.all) if (f[0].equals(m.symbol)) hit = f;
+                        if (hit == null) hit = UlipLink.exact(m.fund, m.all);
+                        if (hit != null) lookUp(m, hit);
+                    } catch (Throwable t) { err = t.getMessage(); }
+                }
+                final String fe = err;
+                ui.post(new Runnable() {
+                    @Override public void run() {
+                        if (isFinishing()) return;
+                        boolean any = false;
+                        for (UlipMatch m : rows) if (!m.all.isEmpty()) any = true;
+                        if (!any) {
+                            dialog().setTitle("Not found online").setMessage(fe != null
+                                    ? "Couldn't reach Yahoo Finance (" + fe + "). Check your connection and try again."
+                                    : "None of your ULIP funds turned up on Yahoo Finance, so keep pasting NAVs for now.")
+                                    .setPositiveButton("OK", null).show();
+                            return;
+                        }
+                        reviewUlipLinks(rows);
+                    }
+                });
+            }
+        });
+    }
+
+    /** Fetches a listing's latest NAV so the person can compare it with theirs (runs on the background thread). */
+    private static void lookUp(UlipMatch m, String[] hit) {
+        m.symbol = hit[0];
+        m.listing = hit[1];
+        try {
+            TreeMap<Long, Double> h = new TreeMap<>();
+            Net.stockHistory(hit[0], h);
+            if (!h.isEmpty()) { m.online = h.lastEntry().getValue(); m.onlineDay = h.lastKey(); }
+        } catch (Throwable ignored) { }
+        m.pick = m.online != null && (m.mine == null || UlipLink.close(m.mine, m.online));
+    }
+
+    private void reviewUlipLinks(final List<UlipMatch> rows) {
+        final java.time.format.DateTimeFormatter f = java.time.format.DateTimeFormatter.ofPattern("d MMM", Locale.US);
+        final LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.addView(Ui.text(this, "Tick the funds to update online. Compare the online NAV with your last pasted one to be sure it's the same fund.",
+                12, Ui.SUB, false));
+        final Runnable[] redraw = new Runnable[1];
+        redraw[0] = new Runnable() {
+            @Override public void run() {
+                while (box.getChildCount() > 1) box.removeViewAt(1);
+                for (final UlipMatch m : rows) {
+                    LinearLayout r = Ui.row(MainActivity.this);
+                    r.setPadding(0, (int) (12 * dp), 0, (int) (4 * dp));
+                    final android.widget.CheckBox cb = new android.widget.CheckBox(MainActivity.this);
+                    cb.setChecked(m.pick);
+                    cb.setEnabled(m.symbol != null && m.online != null);
+                    cb.setButtonTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
+                    cb.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
+                        @Override public void onCheckedChanged(android.widget.CompoundButton b, boolean on) { m.pick = on; }
+                    });
+                    r.addView(cb);
+                    LinearLayout t = new LinearLayout(MainActivity.this);
+                    t.setOrientation(LinearLayout.VERTICAL);
+                    t.addView(Ui.text(MainActivity.this, m.fund, 15, Ui.TEXT, true));
+                    if (m.online != null) {
+                        t.addView(Ui.text(MainActivity.this, m.listing, 12, Ui.SUB, false));
+                        String line = "Online " + String.format(Locale.US, "%.4f", m.online) + " · " + LocalDate.ofEpochDay(m.onlineDay).format(f);
+                        if (m.mine != null) line += "   Yours " + String.format(Locale.US, "%.4f", m.mine) + " · " + LocalDate.ofEpochDay(m.mineDay).format(f);
+                        boolean ok = m.mine == null || UlipLink.close(m.mine, m.online);
+                        t.addView(Ui.text(MainActivity.this, line, 12, ok ? Ui.GREEN : Ui.RED, false));
+                        if (!ok) t.addView(Ui.text(MainActivity.this, "Very different from yours: check it's the same fund", 11, Ui.RED, false));
+                    } else {
+                        t.addView(Ui.text(MainActivity.this, m.all.isEmpty() ? "Not found online · keep pasting" : "No exact match · tap to choose from " + m.all.size(),
+                                12, m.all.isEmpty() ? Ui.SUB : Ui.ACCENT, false));
+                    }
+                    if (!m.all.isEmpty()) t.setOnClickListener(new View.OnClickListener() {
+                        @Override public void onClick(View v) { chooseListing(m, redraw[0]); }
+                    });
+                    r.addView(t, Ui.weight(1));
+                    box.addView(r);
+                }
+            }
+        };
+        redraw[0].run();
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(padded(box));
+        dialog().setTitle("Auto-update ULIP NAVs").setView(sv)
+                .setPositiveButton("Link selected", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int w) {
+                        int n = 0;
+                        for (UlipMatch m : rows) {
+                            for (Store.Asset a : store.assets)
+                                if (a.type == Store.ULIP && a.name.equals(m.fund)) a.navSymbol = m.pick && m.symbol != null && m.online != null ? m.symbol : "";
+                            if (m.pick && m.symbol != null && m.online != null) n++;
+                        }
+                        store.save();
+                        toast(n == 0 ? "No funds linked" : n + (n == 1 ? " fund" : " funds") + " will now update online");
+                        if (n > 0) refresh(null, false); else render(false);
+                    }
+                }).setNegativeButton("Cancel", null).show();
+    }
+
+    /** Pick a listing by hand when the name didn't match exactly. */
+    private void chooseListing(final UlipMatch m, final Runnable done) {
+        String[] labels = new String[m.all.size()];
+        for (int i = 0; i < labels.length; i++) labels[i] = m.all.get(i)[1] + "\n" + m.all.get(i)[0];
+        dialog().setTitle(m.fund).setItems(labels, new DialogInterface.OnClickListener() {
+            @Override public void onClick(DialogInterface d, final int w) {
+                exec.execute(new Runnable() {
+                    @Override public void run() {
+                        lookUp(m, m.all.get(w));
+                        m.pick = m.online != null;
+                        ui.post(done);
+                    }
+                });
+            }
+        }).show();
     }
 }

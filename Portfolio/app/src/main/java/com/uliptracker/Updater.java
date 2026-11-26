@@ -30,14 +30,14 @@ public final class Updater {
         all.addAll(store.indices);
         for (Store.Asset a : all)
             if ((only == null || a == only || (only.type != Store.INDEX && a.key().equals(only.key())))
-                    && a.type != Store.ULIP && !a.code.isEmpty() && !a.hidden) todo.add(a);
+                    && !a.fetchCode().isEmpty() && !a.hidden) todo.add(a);   // ULIP funds only once linked to an online NAV
         return todo;
     }
 
     /** Symbols to fetch: "type:code" -> [type, code]. Build on the owner thread, then pass to fetch(). */
     public static Map<String, String[]> symbols(List<Store.Asset> todo) {
         Map<String, String[]> m = new HashMap<>();
-        for (Store.Asset a : todo) m.put(a.type + ":" + a.code, new String[]{String.valueOf(a.type), a.code});
+        for (Store.Asset a : todo) m.put(a.type + ":" + a.fetchCode(), new String[]{String.valueOf(a.type), a.fetchCode()});
         return m;
     }
 
@@ -67,14 +67,14 @@ public final class Updater {
     public static int[] apply(Store store, List<Store.Asset> todo, Map<String, Result> results) {
         int ok = 0, fail = 0;
         for (Store.Asset a : todo) {
-            Result r = results.get(a.type + ":" + a.code);
+            Result r = results.get(a.type + ":" + a.fetchCode());
             if (r == null) continue;
             if (r.prices != null) {
                 a.prices.putAll(r.prices);
                 a.fetchedAt = System.currentTimeMillis();
                 a.error = null;
                 if (r.category != null && !r.category.isEmpty()) a.category = r.category;
-                if (r.currency != null && !r.currency.isEmpty()) a.currency = r.currency;
+                if (r.currency != null && !r.currency.isEmpty() && a.type != Store.ULIP) a.currency = r.currency;
                 if (r.name != null && a.type == Store.STOCK && a.name.equals(a.code.replace(".NS", "").replace(".BO", "")))
                     a.name = r.name;
                 ok++;

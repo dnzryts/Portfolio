@@ -108,6 +108,29 @@ public final class Net {
     /** Returns [symbol, name, exchange label] for equities and ETFs on any exchange, NSE/BSE first. */
     public static List<String[]> stockSearch(String q) throws Exception { return search(q, false); }
 
+    /**
+     * SBI Life ULIP funds listed on Yahoo Finance (Morningstar-fed, symbols like 0P0000NRF5.BO).
+     * Returns [symbol, name] for fund results whose name mentions SBI Life.
+     */
+    public static List<String[]> ulipSearch(String fund) throws Exception {
+        String url = "https://query2.finance.yahoo.com/v1/finance/search?q=" + enc("SBI Life " + fund)
+                + "&quotesCount=20&newsCount=0&listsCount=0";
+        JSONObject o = new JSONObject(get(url));
+        JSONArray quotes = o.optJSONArray("quotes");
+        List<String[]> out = new ArrayList<>();
+        if (quotes == null) return out;
+        for (int i = 0; i < quotes.length(); i++) {
+            JSONObject x = quotes.getJSONObject(i);
+            String sym = x.optString("symbol", "");
+            String name = x.optString("longname", x.optString("shortname", sym));
+            String qt = x.optString("quoteType", "");
+            if (sym.isEmpty() || !name.toLowerCase(java.util.Locale.ROOT).contains("sbi life")) continue;
+            if (!"MUTUALFUND".equalsIgnoreCase(qt) && !sym.startsWith("0P")) continue;
+            out.add(new String[]{sym, name});
+        }
+        return out;
+    }
+
     /** Market indices (Nifty, Sensex, sector indices...). */
     public static List<String[]> indexSearch(String q) throws Exception { return search(q, true); }
 

@@ -141,6 +141,12 @@ public class Store {
         /** Trading currency of a quoted stock/ETF/index from the exchange ("" for funds and manual assets). */
         public String currency = "";
 
+        /** For a ULIP fund: its Yahoo Finance symbol (e.g. 0P0000NRF5.BO) so NAVs update online; "" = pasted only. */
+        public String navSymbol = "";
+
+        /** Code used to fetch prices online ("" if this holding isn't updated online). */
+        public String fetchCode() { return type == ULIP ? navSymbol : code; }
+
         public String ownerOrDefault() { return owner == null || owner.trim().isEmpty() ? "Me" : owner.trim(); }
 
         public boolean manual() { return type == OTHER || type == LOAN; }
@@ -418,6 +424,7 @@ public class Store {
                 ao.put("platform", a.platform);
                 if (!a.owner.isEmpty()) ao.put("owner", a.owner);
                 if (!a.currency.isEmpty()) ao.put("ccy", a.currency);
+                if (!a.navSymbol.isEmpty()) ao.put("nav", a.navSymbol);
                 if (!a.category.isEmpty()) ao.put("cat", a.category);
                 if (a.manual()) {
                     ao.put("kind", a.kind); ao.put("principal", a.principal); ao.put("rate", a.rate);
@@ -527,6 +534,7 @@ public class Store {
                 a.platform = ao.optString("platform", "");
                 a.owner = ao.optString("owner", "");
                 a.currency = ao.optString("ccy", "");
+                a.navSymbol = ao.optString("nav", "");
                 a.category = ao.optString("cat", "");
                 a.kind = ao.optString("kind", "");
                 a.principal = ao.optDouble("principal", 0); a.rate = ao.optDouble("rate", 0);

@@ -4,6 +4,12 @@ All notable changes to Portfolio (Android) and Portfolio for Galaxy Watch.
 Newest first. The app shows this list under More › About & what's new; it's built from
 this file by `Portfolio/tools/changelog.py`, so edit here and re-run the script.
 
+## 8.8 — 26 Nov 2026
+- ULIP NAVs can update online: More › Auto-update ULIP NAVs finds your SBI Life funds on Yahoo Finance and updates them every business day, like mutual funds
+- You confirm each match first, with the online NAV shown next to your last pasted one; very different values are flagged
+- Each ULIP fund page shows whether its NAV comes from paste or online, with a link or unlink option
+- Pasting still works and fills any gaps; funds not listed online stay on paste
+
 ## 8.7.1 — 25 Nov 2026
 - Changing the theme (System, Light, Dark, Pure black) no longer asks for your fingerprint; neither does your phone switching between light and dark on its own
 - The app still locks as before when you come back after more than 30 seconds away
