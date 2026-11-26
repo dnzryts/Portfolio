@@ -4,6 +4,11 @@ All notable changes to Portfolio (Android) and Portfolio for Galaxy Watch.
 Newest first. The app shows this list under More › About & what's new; it's built from
 this file by `Portfolio/tools/changelog.py`, so edit here and re-run the script.
 
+## 9.0.1 — 26 Nov 2026
+- Changing an option no longer jumps to the top of the page: profile, filter, list layout and Analytics section buttons redraw in place
+- After changing the theme or Pure black, the page opens where you were, without the entrance animation
+- Smaller header buttons (eye, refresh, +), evenly spaced and lined up with the page title
+
 ## 9.0 — 26 Nov 2026
 - Auto refresh while the app is open, every 1, 5, 15, 30 or 60 minutes, or off (More › Prices & refresh, or long-press the ↻ button)
 - Option to auto refresh only while the market is open (NSE hours on weekdays), plus one evening refresh for mutual fund and ULIP NAVs

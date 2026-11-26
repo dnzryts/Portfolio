@@ -108,6 +108,7 @@ public class MainActivity extends Activity {
             // a theme change or rotation restarts the screen: stay unlocked if it was unlocked moments ago
             // (onResume still asks if more than 30 s passed, e.g. the app was closed in the background)
             if (b.getBoolean("unlocked", false)) stoppedAt = b.getLong("visibleAt", 0);
+            pendingScrollY = b.getInt("scrollY", 0);
         }
         getWindow().setStatusBarColor(Ui.BG);
         int flags = 0;
@@ -170,7 +171,7 @@ public class MainActivity extends Activity {
             iv.play(shell);
         }
         Ui.PRIVATE = Alerts.prefs(this).getBoolean("privacyStart", false) || (b != null && b.getBoolean("private", false));
-        if (!Lock.enabled(this) || stoppedAt > 0) render(true);
+        if (!Lock.enabled(this) || stoppedAt > 0) render(b == null);    // after a theme change: same place, no entrance animation
         if (b == null) handleIncoming(getIntent());
         final String crash = Crash.take(this);
         if (crash != null) {
@@ -200,6 +201,7 @@ public class MainActivity extends Activity {
         out.putBoolean("unlocked", !locked);
         out.putLong("visibleAt", hiddenForRecents && stoppedAt > 0 ? stoppedAt : System.currentTimeMillis());
         out.putBoolean("private", Ui.PRIVATE);
+        out.putInt("scrollY", scroller != null ? scroller.getScrollY() : 0);
     }
 
     private boolean locked;          // lock screen showing, fingerprint needed
@@ -440,8 +442,12 @@ public class MainActivity extends Activity {
     }
 
     // ================================================================== helpers
+    private int pendingScrollY;     // scroll position to restore after the screen restarts (theme change)
+
     private LinearLayout page(boolean keepScroll) {
-        final int y = !offscreen && keepScroll && scroller != null ? scroller.getScrollY() : 0;
+        int y0 = !offscreen && keepScroll && scroller != null ? scroller.getScrollY() : 0;
+        if (!offscreen && pendingScrollY > 0) { y0 = pendingScrollY; pendingScrollY = 0; }
+        final int y = y0;
         scroller = new ScrollView(this);
         scroller.setBackgroundColor(Ui.BG);
         scroller.setFillViewport(true);
@@ -618,6 +624,8 @@ public class MainActivity extends Activity {
     /** Page title with optional refresh and + buttons. */
     private View header(String title, boolean withRefresh, boolean withAdd, final Runnable onAdd) {
         LinearLayout head = Ui.row(this);
+        head.setGravity(Gravity.TOP);          // buttons line up with the title, not the title + subtitle block
+        final int bs = (int) (36 * dp), gap = (int) (8 * dp);
         LinearLayout titles = new LinearLayout(this);
         titles.setOrientation(LinearLayout.VERTICAL);
         titles.addView(Ui.text(this, title, 26, Ui.TEXT, true));
@@ -630,7 +638,7 @@ public class MainActivity extends Activity {
         circle(eye, Ui.CARD2);
         NavIcon ei = new NavIcon(this, Ui.PRIVATE ? 5 : 4);
         ei.setState(Ui.PRIVATE ? Ui.ACCENT : Ui.TEXT, false);
-        eye.addView(ei, new FrameLayout.LayoutParams((int) (22 * dp), (int) (22 * dp), Gravity.CENTER));
+        eye.addView(ei, new FrameLayout.LayoutParams((int) (18 * dp), (int) (18 * dp), Gravity.CENTER));
         eye.setContentDescription(Ui.PRIVATE ? "Show amounts" : "Hide amounts");
         eye.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
@@ -639,23 +647,26 @@ public class MainActivity extends Activity {
                 render(false);
             }
         });
-        LinearLayout.LayoutParams elp = new LinearLayout.LayoutParams((int) (42 * dp), (int) (42 * dp));
-        elp.setMargins(0, 0, (int) (10 * dp), 0);
+        LinearLayout.LayoutParams elp = new LinearLayout.LayoutParams(bs, bs);
+        elp.setMargins(gap, 0, 0, 0);
         head.addView(eye, elp);
         if (withRefresh) {
             RefreshRing ref = new RefreshRing(this);
             ref.setContentDescription("Refresh prices");
             ref.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { if (!refreshing) refresh(null, false); } });
             ref.setOnLongClickListener(new View.OnLongClickListener() { @Override public boolean onLongClick(View v) { autoRefreshDialog(); return true; } });
-            head.addView(ref, new LinearLayout.LayoutParams((int) (42 * dp), (int) (42 * dp)));
+            LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(bs, bs);
+            rlp.setMargins(gap, 0, 0, 0);
+            head.addView(ref, rlp);
         }
         if (withAdd) {
-            TextView plus = Ui.text(this, "+", 24, Ui.ON_ACCENT, true);
+            TextView plus = Ui.text(this, "+", 21, Ui.ON_ACCENT, true);
+            plus.setIncludeFontPadding(false);
             plus.setGravity(Gravity.CENTER);
             circle(plus, Ui.ACCENT);
             plus.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { onAdd.run(); } });
-            LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams((int) (42 * dp), (int) (42 * dp));
-            plp.setMargins((int) (10 * dp), 0, 0, 0);
+            LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(bs, bs);
+            plp.setMargins(gap, 0, 0, 0);
             head.addView(plus, plp);
         }
         return head;
@@ -794,7 +805,7 @@ public class MainActivity extends Activity {
                 if (i == 0) scopeKind = 0;
                 else if (i <= 5) { scopeKind = 1; scopeType = i == 1 ? Store.STOCK : i == 2 ? Store.MF : i == 3 ? Store.ULIP : i == 4 ? Store.OTHER : Store.LOAN; }
                 else { scopeKind = 2; scopePlatform = plats.get(i - 6); }
-                render(true);
+                render(false);
             }
         }, false));
         add(col, hs, idx++, animate);
@@ -821,7 +832,7 @@ public class MainActivity extends Activity {
         add(col, lm, idx++, animate);
         col.addView(Ui.space(this, 8));
         add(col, chips(new String[]{"Merged", "By type", "By platform"}, listMode == 2 ? 0 : listMode + 1, new Pick() {
-            @Override public void on(int i) { listMode = i == 0 ? 2 : i - 1; render(true); }
+            @Override public void on(int i) { listMode = i == 0 ? 2 : i - 1; render(false); }
         }, true), idx++, animate);
         col.addView(Ui.space(this, 12));
 
@@ -2860,7 +2871,7 @@ public class MainActivity extends Activity {
                         store.renamePlatform(from, to);
                         if (scopeKind == 2) scopePlatform = to;
                         store.save();
-                        render(true);
+                        render(false);
                     }
                 }).setNegativeButton("Cancel", null).show();
     }
@@ -3534,7 +3545,7 @@ public class MainActivity extends Activity {
             @Override public void on(int i) {
                 store.ownerFilter = filters.get(i);
                 Alerts.prefs(MainActivity.this).edit().putString("owner", store.ownerFilter).apply();
-                render(true);
+                render(false);
             }
         }, false);
         // a small round picture before each person's name
@@ -4642,7 +4653,7 @@ public class MainActivity extends Activity {
         View oc = ownerChips();
         if (oc != null) add(col, oc, idx++, animate);
         add(col, chips(new String[]{"Forecast", "Performance", "Suggestions"}, anSeg, new Pick() {
-            @Override public void on(int i) { if (i != anSeg) { anSeg = i; render(true); } }
+            @Override public void on(int i) { if (i != anSeg) { anSeg = i; render(false); } }
         }, true), idx++, animate);
         col.addView(Ui.space(this, 12));
         if (Store.value(store.visible(-1)) <= 0) {

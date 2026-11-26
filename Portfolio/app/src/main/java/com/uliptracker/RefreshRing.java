@@ -32,14 +32,14 @@ public class RefreshRing extends View {
         ring.setStrokeCap(Paint.Cap.ROUND);
         icon.setStyle(Paint.Style.STROKE);
         icon.setStrokeCap(Paint.Cap.ROUND);
-        icon.setStrokeWidth(2f * dp);
+        icon.setStrokeWidth(1.8f * dp);
         shown = busy && total > 0 ? (float) done / total : 0f;
     }
 
     @Override
     protected void onDraw(Canvas c) {
         float w = getWidth(), h = getHeight(), cx = w / 2, cy = h / 2;
-        float sw = 2.6f * dp, rad = Math.min(w, h) / 2 - sw / 2 - 0.5f * dp;
+        float sw = 2.2f * dp, rad = Math.min(w, h) / 2 - sw / 2 - 0.5f * dp;
         long now = SystemClock.uptimeMillis(), wall = System.currentTimeMillis();
         bg.setColor(Ui.CARD2);
         c.drawCircle(cx, cy, Math.min(w, h) / 2, bg);
@@ -78,7 +78,7 @@ public class RefreshRing extends View {
         }
         // the arrow: an open circle with a head
         icon.setColor(busy ? Ui.ACCENT : Ui.TEXT);
-        float ri = Math.min(w, h) * 0.2f;
+        float ri = Math.min(w, h) * 0.21f;
         c.save();
         c.rotate(spin, cx, cy);
         ir.set(cx - ri, cy - ri, cx + ri, cy + ri);
@@ -86,9 +86,9 @@ public class RefreshRing extends View {
         double end = Math.toRadians(-60);
         float ex = cx + (float) (ri * Math.cos(end)), ey = cy + (float) (ri * Math.sin(end));
         head.reset();
-        head.moveTo(ex - 4.2f * dp, ey - 1.2f * dp);
+        head.moveTo(ex - 3.6f * dp, ey - 1f * dp);
         head.lineTo(ex, ey);
-        head.lineTo(ex - 0.6f * dp, ey + 4.2f * dp);
+        head.lineTo(ex - 0.5f * dp, ey + 3.6f * dp);
         c.drawPath(head, icon);
         c.restore();
     }
