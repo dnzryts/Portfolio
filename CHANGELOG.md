@@ -4,6 +4,9 @@ All notable changes to Portfolio (Android) and Portfolio for Galaxy Watch.
 Newest first. The app shows this list under More › About & what's new; it's built from
 this file by `Portfolio/tools/changelog.py`, so edit here and re-run the script.
 
+## 9.1.1 — 26 Nov 2026
+- Solid background behind and below the floating menu (with a short fade above it), so content no longer shows through around the menu; the same strip sits behind the side menu in landscape
+
 ## 9.1 — 26 Nov 2026
 - Full-screen layout: the app draws behind the status bar and the gesture bar, edge to edge
 - The bottom menu is now a floating rounded card with a soft shadow, and pages scroll underneath it

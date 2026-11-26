@@ -13,6 +13,7 @@ public final class Changelog {
 
     /** Newest first. */
     public static final Entry[] ENTRIES = {
+            new Entry("9.1.1", "26 Nov 2026", new String[]{"Solid background behind and below the floating menu (with a short fade above it), so content no longer shows through around the menu; the same strip sits behind the side menu in landscape"}),
             new Entry("9.1", "26 Nov 2026", new String[]{"Full-screen layout: the app draws behind the status bar and the gesture bar, edge to edge", "The bottom menu is now a floating rounded card with a soft shadow, and pages scroll underneath it", "In landscape the menu becomes a floating card down the side, so pages keep their full height", "Pages adjust to each phone's notch and gesture-bar sizes, and the menu hides while the keyboard is open"}),
             new Entry("9.0.2", "26 Nov 2026", new String[]{"Settings (More) now stay where you are when you flip a switch or pick an option; the page no longer jumps to the top", "Switches slide on and off in place before anything that depends on them updates"}),
             new Entry("9.0.1", "26 Nov 2026", new String[]{"Changing an option no longer jumps to the top of the page: profile, filter, list layout and Analytics section buttons redraw in place", "After changing the theme or Pure black, the page opens where you were, without the entrance animation", "Smaller header buttons (eye, refresh, +), evenly spaced and lined up with the page title"}),
