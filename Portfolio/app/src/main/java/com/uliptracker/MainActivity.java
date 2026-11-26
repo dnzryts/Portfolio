@@ -170,13 +170,14 @@ public class MainActivity extends Activity {
         statusScrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[]{(Ui.BG & 0x00FFFFFF) | 0xF2000000, (Ui.BG & 0x00FFFFFF) | 0xD9000000}));
         root.addView(statusScrim, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, Gravity.TOP));
-        // solid band behind the floating menu (with a short fade) so pages don't show through around it
+        // solid band behind the floating menu so pages don't show through around it
         navSolid = new View(this);
         navSolid.setBackgroundColor(Ui.BG);
         navFade = new View(this);
         navFade.setBackground(new GradientDrawable(land ? GradientDrawable.Orientation.LEFT_RIGHT : GradientDrawable.Orientation.BOTTOM_TOP,
                 new int[]{Ui.BG, (Ui.BG & 0x00FFFFFF) | 0xB3000000, Ui.BG & 0x00FFFFFF}));
         root.addView(navSolid, bandParams(true));
+        navFade.setVisibility(View.GONE);   // no fade above the menu: just the solid band
         root.addView(navFade, bandParams(false));
         navBar = buildNavBar();
         root.addView(navBar, navParams());
@@ -187,7 +188,7 @@ public class MainActivity extends Activity {
                 boolean kb = bt - in.getStableInsetBottom() > 100 * dp;
                 keyboardUp = kb;
                 if (!locked && !hiddenForRecents) navBar.setVisibility(kb ? View.GONE : View.VISIBLE);
-                if (navSolid != null) { navSolid.setVisibility(kb ? View.GONE : View.VISIBLE); navFade.setVisibility(kb ? View.GONE : View.VISIBLE); }
+                if (navSolid != null) { navSolid.setVisibility(kb ? View.GONE : View.VISIBLE); }
                 if (android.os.Build.VERSION.SDK_INT >= 28 && in.getDisplayCutout() != null) {
                     android.view.DisplayCutout dc = in.getDisplayCutout();
                     l = Math.max(l, dc.getSafeInsetLeft()); r = Math.max(r, dc.getSafeInsetRight()); t = Math.max(t, dc.getSafeInsetTop());
@@ -383,12 +384,12 @@ public class MainActivity extends Activity {
     private FrameLayout.LayoutParams bandParams(boolean solid) {
         int fade = (int) (22 * dp);
         if (land) {
-            int w = insL + (int) ((12 + RAIL_W + 8) * dp);
+            int w = insL + (int) ((12 + RAIL_W) * dp);
             FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(solid ? w : fade, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.START);
             if (!solid) lp.leftMargin = w;
             return lp;
         }
-        int h = (keyboardUp ? 0 : insB) + (int) ((10 + NAV_H + 8) * dp);
+        int h = (keyboardUp ? 0 : insB) + (int) ((10 + NAV_H) * dp);
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, solid ? h : fade, Gravity.BOTTOM);
         if (!solid) lp.bottomMargin = h;
         return lp;

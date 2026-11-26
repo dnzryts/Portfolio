@@ -4,6 +4,10 @@ All notable changes to Portfolio (Android) and Portfolio for Galaxy Watch.
 Newest first. The app shows this list under More › About & what's new; it's built from
 this file by `Portfolio/tools/changelog.py`, so edit here and re-run the script.
 
+## 9.1.2 — 26 Nov 2026
+- Pop-up buttons redrawn as full, evenly sized pills: the main action is no longer clipped at the top, and secondary actions (like "All changes") get a soft tonal pill instead of plain text
+- Removed the fade above the floating menu; the solid strip now ends level with the top of the menu card (same for the side menu in landscape)
+
 ## 9.1.1 — 26 Nov 2026
 - Solid background behind and below the floating menu (with a short fade above it), so content no longer shows through around the menu; the same strip sits behind the side menu in landscape
 

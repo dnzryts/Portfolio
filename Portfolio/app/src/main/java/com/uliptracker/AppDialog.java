@@ -103,24 +103,44 @@ public class AppDialog extends AlertDialog.Builder {
             b.setAllCaps(false);
             b.setTextSize(15);
             b.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-            b.setTextColor(primary ? Ui.ON_ACCENT : b == neu ? Ui.SUB : Ui.ACCENT);
-            b.setMinHeight((int) (44 * dp));
-            b.setMinimumHeight((int) (44 * dp));
-            b.setPadding((int) (20 * dp), 0, (int) (20 * dp), 0);
+            boolean neutral = b == neu;
+            b.setTextColor(primary ? Ui.ON_ACCENT : neutral ? Ui.TEXT : Ui.ACCENT);
+            int h = (int) (44 * dp);
+            b.setMinHeight(h);
+            b.setMinimumHeight(h);
+            b.setMinWidth((int) (88 * dp));
+            b.setMinimumWidth((int) (88 * dp));
+            b.setGravity(Gravity.CENTER);
+            b.setIncludeFontPadding(false);
+            b.setPadding((int) (22 * dp), 0, (int) (22 * dp), 0);
             b.setStateListAnimator(null);
             b.setElevation(0);
+            // every button is a full pill: filled accent for the main action, a soft tonal pill for the others
             GradientDrawable pill = new GradientDrawable();
-            pill.setCornerRadius(22 * dp);
-            pill.setColor(primary ? Ui.ACCENT : 0x00000000);
-            b.setBackground(new RippleDrawable(ColorStateList.valueOf(primary ? 0x33FFFFFF : (Ui.ACCENT & 0x00FFFFFF) | 0x22000000), pill, pill));
+            pill.setCornerRadius(h / 2f);
+            pill.setColor(primary ? Ui.ACCENT : neutral ? (Ui.TEXT & 0x00FFFFFF) | 0x14000000 : (Ui.ACCENT & 0x00FFFFFF) | 0x1F000000);
+            b.setBackground(new RippleDrawable(ColorStateList.valueOf(primary ? 0x33FFFFFF : (Ui.ACCENT & 0x00FFFFFF) | 0x33000000), pill, pill));
             ViewGroup.LayoutParams lp = b.getLayoutParams();
-            if (lp instanceof ViewGroup.MarginLayoutParams) {
-                ((ViewGroup.MarginLayoutParams) lp).setMargins((int) (4 * dp), (int) (6 * dp), (int) (4 * dp), (int) (6 * dp));
+            if (lp != null) {
+                lp.height = h;
+                if (lp instanceof ViewGroup.MarginLayoutParams) ((ViewGroup.MarginLayoutParams) lp).setMargins((int) (4 * dp), 0, (int) (4 * dp), 0);
                 b.setLayoutParams(lp);
             }
         }
         View bar = pos != null ? (View) pos.getParent() : null;
-        if (bar != null) bar.setPadding((int) (16 * dp), (int) (4 * dp), (int) (16 * dp), (int) (14 * dp));
+        if (bar != null) {
+            bar.setPadding((int) (18 * dp), (int) (10 * dp), (int) (18 * dp), (int) (20 * dp));
+            // never let the button panel (a scroll view on most devices) cut off the top of a pill
+            if (bar instanceof ViewGroup) { ((ViewGroup) bar).setClipChildren(false); ((ViewGroup) bar).setClipToPadding(false); }
+            if (bar.getParent() instanceof ViewGroup) {
+                final ViewGroup panel = (ViewGroup) bar.getParent();
+                panel.setClipChildren(false);
+                panel.setClipToPadding(false);
+                panel.setVerticalScrollBarEnabled(false);
+                panel.setScrollIndicators(0);
+                panel.post(new Runnable() { @Override public void run() { panel.scrollTo(0, 0); } });
+            }
+        }
     }
 
     /** Filled, rounded text fields with an accent outline while typing. */

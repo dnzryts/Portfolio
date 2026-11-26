@@ -13,6 +13,7 @@ public final class Changelog {
 
     /** Newest first. */
     public static final Entry[] ENTRIES = {
+            new Entry("9.1.2", "26 Nov 2026", new String[]{"Pop-up buttons redrawn as full, evenly sized pills: the main action is no longer clipped at the top, and secondary actions (like \"All changes\") get a soft tonal pill instead of plain text", "Removed the fade above the floating menu; the solid strip now ends level with the top of the menu card (same for the side menu in landscape)"}),
             new Entry("9.1.1", "26 Nov 2026", new String[]{"Solid background behind and below the floating menu (with a short fade above it), so content no longer shows through around the menu; the same strip sits behind the side menu in landscape"}),
             new Entry("9.1", "26 Nov 2026", new String[]{"Full-screen layout: the app draws behind the status bar and the gesture bar, edge to edge", "The bottom menu is now a floating rounded card with a soft shadow, and pages scroll underneath it", "In landscape the menu becomes a floating card down the side, so pages keep their full height", "Pages adjust to each phone's notch and gesture-bar sizes, and the menu hides while the keyboard is open"}),
             new Entry("9.0.2", "26 Nov 2026", new String[]{"Settings (More) now stay where you are when you flip a switch or pick an option; the page no longer jumps to the top", "Switches slide on and off in place before anything that depends on them updates"}),

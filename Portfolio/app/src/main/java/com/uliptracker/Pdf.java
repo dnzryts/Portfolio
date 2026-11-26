@@ -214,7 +214,7 @@ public final class Pdf {
             if (!content && n instanceof Long) {
                 int save = pos;
                 String t2 = token(b);
-                if (!t2.isEmpty() && t2.chars().allMatch(Character::isDigit)) {
+                if (!t2.isEmpty() && allDigits(t2)) {
                     String t3 = token(b);
                     if (t3.equals("R")) return new Ref(n.intValue(), Integer.parseInt(t2));
                 }
@@ -1097,5 +1097,10 @@ public final class Pdf {
             if (ok) return i;
         }
         return -1;
+    }
+
+    private static boolean allDigits(String s) {
+        for (int i = 0; i < s.length(); i++) if (!Character.isDigit(s.charAt(i))) return false;
+        return true;
     }
 }
