@@ -4,6 +4,13 @@ All notable changes to Portfolio (Android) and Portfolio for Galaxy Watch.
 Newest first. The app shows this list under More › About & what's new; it's built from
 this file by `Portfolio/tools/changelog.py`, so edit here and re-run the script.
 
+## 9.0 — 26 Nov 2026
+- Auto refresh while the app is open, every 1, 5, 15, 30 or 60 minutes, or off (More › Prices & refresh, or long-press the ↻ button)
+- Option to auto refresh only while the market is open (NSE hours on weekdays), plus one evening refresh for mutual fund and ULIP NAVs
+- Option to also refresh when the app is closed, keeping alerts and the widget fresh (Android runs this at most every 15 min)
+- The round ↻ button shows progress: its ring fills as each price arrives, then counts down to the next automatic refresh
+- The page header shows when the next refresh is due
+
 ## 8.9 — 26 Nov 2026
 - Link a ULIP fund to any web page that shows its NAV, such as its Moneycontrol page: open the fund › Use a web page link
 - The app checks the page first and shows the NAV and date it found next to your last NAV before linking

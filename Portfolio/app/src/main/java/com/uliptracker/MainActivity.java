@@ -225,13 +225,15 @@ public class MainActivity extends Activity {
             navBar.setVisibility(View.VISIBLE);
             render(false);
         }
-        if (System.currentTimeMillis() - store.refreshedAt > 15 * 60 * 1000L) refresh(null, true);
+        if (autoDue()) refresh(null, true);
+        startAutoTimer();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         watchServer.stop();
+        ui.removeCallbacks(autoTick);
     }
 
     @Override
@@ -282,7 +284,8 @@ public class MainActivity extends Activity {
                 if (pendingIncoming != null) { final android.net.Uri u = pendingIncoming; pendingIncoming = null; ui.post(new Runnable() { @Override public void run() { importUri(u); } }); }
                 navBar.setVisibility(View.VISIBLE);
                 render(true);
-                if (System.currentTimeMillis() - store.refreshedAt > 15 * 60 * 1000L) refresh(null, true);
+                if (autoDue()) refresh(null, true);
+                startAutoTimer();
             }
             @Override public void fail(String why) { authInProgress = false; if (why != null) toast(why); }
         });
@@ -303,6 +306,8 @@ public class MainActivity extends Activity {
             return;
         }
         updateNav();
+        RefreshRing.lastAt = store.refreshedAt;
+        RefreshRing.intervalMs = Alerts.autoMin(this) * 60_000L;
         // amounts are shown in the currency of the profile on screen (no conversion)
         Ui.setCurrency(screen == 1 && current != null ? store.ccyOf(current.ownerOrDefault()) : store.viewCcy());
         if (screen == 1 && current != null) { if (current.manual()) showManual(current, animate); else showAsset(current, animate); }
@@ -618,7 +623,7 @@ public class MainActivity extends Activity {
         titles.addView(Ui.text(this, title, 26, Ui.TEXT, true));
         String sub = refreshing ? (refreshStatus == null ? "Updating prices…" : refreshStatus)
                 : store.refreshedAt > 0 ? "Prices updated " + java.time.Instant.ofEpochMilli(store.refreshedAt)
-                .atZone(java.time.ZoneId.systemDefault()).format(TF) : "Stocks · mutual funds · SBI Life ULIP";
+                .atZone(java.time.ZoneId.systemDefault()).format(TF) + autoNote() : "Stocks · mutual funds · SBI Life ULIP";
         titles.addView(Ui.text(this, sub, 12, Ui.SUB, false));
         head.addView(titles, Ui.weight(1));
         FrameLayout eye = new FrameLayout(this);
@@ -638,11 +643,10 @@ public class MainActivity extends Activity {
         elp.setMargins(0, 0, (int) (10 * dp), 0);
         head.addView(eye, elp);
         if (withRefresh) {
-            TextView ref = Ui.text(this, "↻", 22, Ui.TEXT, true);
-            ref.setGravity(Gravity.CENTER);
-            circle(ref, Ui.CARD2);
-            ref.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { refresh(null, false); } });
-            if (refreshing) ref.animate().rotationBy(36000).setDuration(100000).setInterpolator(new LinearInterpolator()).start();
+            RefreshRing ref = new RefreshRing(this);
+            ref.setContentDescription("Refresh prices");
+            ref.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { if (!refreshing) refresh(null, false); } });
+            ref.setOnLongClickListener(new View.OnLongClickListener() { @Override public boolean onLongClick(View v) { autoRefreshDialog(); return true; } });
             head.addView(ref, new LinearLayout.LayoutParams((int) (42 * dp), (int) (42 * dp)));
         }
         if (withAdd) {
@@ -1212,6 +1216,9 @@ public class MainActivity extends Activity {
         add(col, Ui.text(this, "Galaxy Watch", 13, Ui.SUB, true), idx++, animate);
         col.addView(Ui.space(this, 6));
         add(col, watchCard(), idx++, animate);
+        add(col, Ui.text(this, "Prices & refresh", 13, Ui.SUB, true), idx++, animate);
+        col.addView(Ui.space(this, 6));
+        add(col, autoRefreshCard(), idx++, animate);
         add(col, Ui.text(this, "Security & alerts", 13, Ui.SUB, true), idx++, animate);
         col.addView(Ui.space(this, 6));
         add(col, settingsCard(), idx++, animate);
@@ -2867,11 +2874,13 @@ public class MainActivity extends Activity {
         final List<Store.Asset> todo = Updater.online(store, only);
         if (todo.isEmpty()) {
             if (pull != null) pull.stop();
-            if (!silent && only == null) toast("Nothing to update online. ULIP NAVs are pasted.");
+            if (silent) { autoEmptyAt = System.currentTimeMillis(); return; }   // auto refresh: nothing online, wait a full interval
+            if (only == null) toast("Nothing to update online. ULIP NAVs are pasted.");
             render(true);
             return;
         }
         refreshing = true;
+        RefreshRing.busy = true; RefreshRing.done = 0; RefreshRing.total = todo.size();
         if (!silent && only == null && pull != null) pull.start();
         refreshStatus = "Updating " + todo.size() + " prices…";
         render(false);
@@ -2881,6 +2890,7 @@ public class MainActivity extends Activity {
             @Override public void run() {
                 final java.util.Map<String, Updater.Result> results = Updater.fetch(symbols, new Updater.Progress() {
                     @Override public void on(final int done, final int total) {
+                        RefreshRing.done = done; RefreshRing.total = total;
                         ui.post(new Runnable() { @Override public void run() { refreshStatus = "Updating prices… " + done + "/" + total; } });
                     }
                 });
@@ -2888,6 +2898,8 @@ public class MainActivity extends Activity {
                     @Override public void run() {
                         refreshing = false;
                         refreshStatus = null;
+                        RefreshRing.busy = false;
+                        RefreshRing.finishedAt = System.currentTimeMillis();
                         if (pull != null) pull.stop();
                         if (owner != store || isFinishing()) return;   // data was reloaded meanwhile
                         Map<Store.Asset, Double> before = new java.util.HashMap<>();
@@ -6308,6 +6320,101 @@ public class MainActivity extends Activity {
                     }
                 });
             }
+        }).show();
+    }
+
+
+    // ================================================================== auto refresh
+    private final Runnable autoTick = new Runnable() {
+        @Override public void run() {
+            if (autoDue()) refresh(null, true);
+            ui.postDelayed(this, 20_000);
+        }
+    };
+
+    private long autoEmptyAt;
+
+    private void startAutoTimer() {
+        ui.removeCallbacks(autoTick);
+        if (Alerts.autoMin(this) > 0) ui.postDelayed(autoTick, 20_000);
+    }
+
+    /** Time for an automatic refresh: on, unlocked, not already refreshing, interval passed, and in market hours if asked. */
+    private boolean autoDue() {
+        int m = Alerts.autoMin(this);
+        if (m <= 0 || refreshing || locked || hiddenForRecents || authInProgress) return false;
+        long now = System.currentTimeMillis();
+        if (now - store.refreshedAt < m * 60_000L || now - autoEmptyAt < m * 60_000L) return false;
+        return !Alerts.autoMarketOnly(this) || Alerts.marketWindow(store.refreshedAt);
+    }
+
+    private String autoNote() {
+        int m = Alerts.autoMin(this);
+        if (m <= 0) return " · auto refresh off";
+        if (Alerts.autoMarketOnly(this) && !Alerts.marketWindow(store.refreshedAt)) return " · auto refresh resumes in market hours";
+        long next = store.refreshedAt + m * 60_000L - System.currentTimeMillis();
+        return next <= 30_000 ? " · refreshing soon" : " · next in " + (next < 3_600_000 ? Math.max(1, next / 60_000) + " min" : (next / 3_600_000) + " h");
+    }
+
+    private static final int[] AUTO_MIN = {0, 1, 5, 15, 30, 60};
+    private static final String[] AUTO_LABEL = {"Off", "1 min", "5 min", "15 min", "30 min", "1 hour"};
+
+    private View autoRefreshCard() {
+        LinearLayout c = Ui.card(this);
+        c.setPadding(0, (int) (4 * dp), 0, (int) (4 * dp));
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.VERTICAL);
+        top.setPadding((int) (18 * dp), (int) (12 * dp), (int) (18 * dp), (int) (12 * dp));
+        top.addView(Ui.text(this, "Auto refresh while the app is open", 15, Ui.TEXT, false));
+        top.addView(Ui.text(this, "The ring round the ↻ button fills while prices update, and counts down to the next refresh. "
+                + "Long-press it to change this.", 12, Ui.SUB, false));
+        top.addView(Ui.space(this, 10));
+        int sel = 3;
+        for (int i = 0; i < AUTO_MIN.length; i++) if (AUTO_MIN[i] == Alerts.autoMin(this)) sel = i;
+        HorizontalScrollView hs = new HorizontalScrollView(this);
+        hs.setHorizontalScrollBarEnabled(false);
+        hs.addView(chips(AUTO_LABEL, sel, new Pick() {
+            @Override public void on(int i) { setAutoMin(AUTO_MIN[i]); }
+        }, false));
+        top.addView(hs);
+        c.addView(top);
+        if (Alerts.autoMin(this) > 0) {
+            c.addView(divider());
+            c.addView(switchRow("Only while the market is open", "NSE hours on weekdays (9:15 am–3:30 pm IST), plus one refresh after 8 pm for mutual fund and ULIP NAVs",
+                    Alerts.autoMarketOnly(this), true, new Toggle() {
+                        @Override public void set(boolean on) {
+                            Alerts.prefs(MainActivity.this).edit().putBoolean("autoMarket", on).apply();
+                            ui.post(new Runnable() { @Override public void run() { render(false); } });
+                        }
+                    }));
+            c.addView(divider());
+            c.addView(switchRow("Also when the app is closed", "Keeps prices, alerts and the home-screen widget fresh. Android runs this at most every 15 min "
+                    + "and may delay it to save battery", Alerts.prefs(this).getBoolean("autoBg", false), true, new Toggle() {
+                        @Override public void set(boolean on) {
+                            Alerts.prefs(MainActivity.this).edit().putBoolean("autoBg", on).apply();
+                            String err = Alerts.schedule(MainActivity.this);
+                            if (err != null) toast("Background refresh unavailable: " + err);
+                        }
+                    }));
+        }
+        return c;
+    }
+
+    private void setAutoMin(int m) {
+        Alerts.prefs(this).edit().putInt("auto", m).apply();
+        Alerts.schedule(this);
+        startAutoTimer();
+        toast(m == 0 ? "Auto refresh off" : "Auto refresh every " + (m == 60 ? "hour" : m + " min"));
+        render(false);
+    }
+
+    private void autoRefreshDialog() {
+        int cur = Alerts.autoMin(this);
+        String[] rows = new String[AUTO_MIN.length];
+        for (int i = 0; i < rows.length; i++)
+            rows[i] = (AUTO_MIN[i] == cur ? "✓ " : "⏱ ") + (AUTO_MIN[i] == 0 ? "Off\nRefresh only when you ask" : "Every " + AUTO_LABEL[i]);
+        dialog().setTitle("Auto refresh").setItems(rows, new DialogInterface.OnClickListener() {
+            @Override public void onClick(DialogInterface d, int w) { setAutoMin(AUTO_MIN[w]); }
         }).show();
     }
 }

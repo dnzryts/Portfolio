@@ -3,7 +3,7 @@
 Two Android apps, written in plain Java on the Android framework only (no AndroidX or other
 libraries). Each folder is an Android Studio project and also includes the APK built from it.
 
-## Portfolio (`Portfolio/`, package `com.uliptracker`, v8.9)
+## Portfolio (`Portfolio/`, package `com.uliptracker`, v9.0)
 
 | File | What it does |
 |---|---|
@@ -28,6 +28,7 @@ libraries). Each folder is an Android Studio project and also includes the APK b
 | `PageNav.java` | Reads a fund's NAV and date from an ordinary web page (e.g. Moneycontrol) |
 | `UlipLink.java` | Matches ULIP fund names to their SBI Life listings online (Yahoo Finance) |
 | `AppDialog.java` | Every pop-up in the app's style: rounded card, app fonts, pill buttons, filled text fields, rich menu rows |
+| `RefreshRing.java` | Round ↻ button: progress ring while refreshing, countdown to the next auto refresh |
 | `PullRefresh.java` | Pull down from the top of a page to refresh prices |
 | `WatchLink.java` | Phone ⇄ watch sync over Bluetooth (secure RFCOMM between the paired devices) |
 | `WatchActivity.java` | The Galaxy Watch app (built from the same sources as the `watch` module) |

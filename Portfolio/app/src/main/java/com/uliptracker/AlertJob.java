@@ -14,6 +14,11 @@ public class AlertJob extends JobService {
                 boolean retry = false;
                 try {
                     Store store = new Store(AlertJob.this);
+                    // background auto-refresh only (no alerts to check) can be limited to market hours
+                    if (!Alerts.needAlerts(AlertJob.this) && Alerts.autoMarketOnly(AlertJob.this) && !Alerts.marketWindow(store.refreshedAt)) {
+                        jobFinished(params, false);
+                        return;
+                    }
                     int[] r = Updater.run(store, Updater.online(store, null), null);
                     retry = r[0] == 0 && r[1] > 0;
                     Alerts.check(AlertJob.this, store);

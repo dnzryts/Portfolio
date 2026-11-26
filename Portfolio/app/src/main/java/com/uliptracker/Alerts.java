@@ -35,10 +35,36 @@ public final class Alerts {
     public static int intervalMin(Context c) { return prefs(c).getInt("interval", 30); }
     public static boolean dailySummary(Context c) { return prefs(c).getBoolean("daily", false); }
 
-    /** Background checks are needed for move alerts, the daily summary, or any price target. */
-    static boolean needJob(Context c) {
+    /** Background checks are needed for move alerts, the daily summary, any price target, or background auto-refresh. */
+    static boolean needJob(Context c) { return needAlerts(c) || autoBackground(c); }
+
+    static boolean needAlerts(Context c) {
         if (enabled(c) || dailySummary(c)) return true;
         return prefs(c).getBoolean("hasTargets", false) || prefs(c).getBoolean("hasPolicies", false);
+    }
+
+    // ---- auto refresh ----
+    /** Minutes between automatic refreshes while the app is open; 0 = off. */
+    public static int autoMin(Context c) { return prefs(c).getInt("auto", 15); }
+    public static boolean autoMarketOnly(Context c) { return prefs(c).getBoolean("autoMarket", false); }
+    public static boolean autoBackground(Context c) { return autoMin(c) > 0 && prefs(c).getBoolean("autoBg", false); }
+
+    /**
+     * NSE trading hours (Mon–Fri 9:15–15:30 IST), plus one evening refresh after 8 pm IST for mutual fund
+     * and ULIP NAVs, which are published after the close.
+     */
+    public static boolean marketWindow(long lastRefresh) {
+        java.time.ZoneId ist = java.time.ZoneId.of("Asia/Kolkata");
+        java.time.ZonedDateTime now = java.time.ZonedDateTime.now(ist);
+        int dow = now.getDayOfWeek().getValue();
+        if (dow >= 6) return false;
+        int mins = now.getHour() * 60 + now.getMinute();
+        if (mins >= 9 * 60 + 15 && mins <= 15 * 60 + 30) return true;
+        if (mins >= 20 * 60) {
+            long eight = now.toLocalDate().atTime(20, 0).atZone(ist).toInstant().toEpochMilli();
+            return lastRefresh < eight;
+        }
+        return false;
     }
 
     static void notePolicies(Context c, Store store) {
@@ -67,7 +93,9 @@ public final class Alerts {
         try {
             JobScheduler js = (JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE);
             if (!needJob(c)) { js.cancel(JOB_ID); return null; }
-            long period = Math.max(15, intervalMin(c)) * 60_000L;
+            long mins = needAlerts(c) ? intervalMin(c) : Long.MAX_VALUE;
+            if (autoBackground(c)) mins = Math.min(mins, autoMin(c));
+            long period = Math.max(15, mins) * 60_000L;           // Android's minimum for periodic jobs
             JobInfo existing = js.getPendingJob(JOB_ID);
             if (existing != null && existing.getIntervalMillis() == period) return null;   // already set
             JobInfo.Builder b = new JobInfo.Builder(JOB_ID, new ComponentName(c, AlertJob.class))
