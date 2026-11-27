@@ -4878,6 +4878,11 @@ public class MainActivity extends Activity {
         h.addView(Ui.text(this, "Likely range  " + Analytics.shortRupees(p10[H]) + " – " + Analytics.shortRupees(p90[H])
                 + "   ·   8 in 10 outcomes", 13, Ui.TEXT, false));
         h.addView(Ui.text(this, "You'll have put in " + Analytics.shortRupees(put[H]) + " (today's value + future investing)", 12, Ui.HERO_SUB, false));
+        if (m != null && (Double.isNaN(m.mu) || Double.isNaN(m.sigma) || m.mu < -20 || m.mu > 40 || m.sigma > 60)) {
+            h.addView(Ui.space(this, 6));
+            h.addView(Ui.text(this, "⚠ Your holdings gave an unrealistic expected return (" + fmt1(m.mu) + "%) or volatility ("
+                    + fmt1(m.sigma) + "%), so realistic limits are used. A holding may have a wrong price or rate.", 12, 0xFFFFB74D, false));
+        }
         h.addView(Ui.space(this, 10));
         final int[] hs = {5, 10, 15, 20, 25, 30};
         int hsel = 1;

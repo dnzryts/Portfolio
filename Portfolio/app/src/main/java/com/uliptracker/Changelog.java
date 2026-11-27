@@ -13,6 +13,7 @@ public final class Changelog {
 
     /** Newest first. */
     public static final Entry[] ENTRIES = {
+            new Entry("9.1.8", "27 Nov 2026", new String[]{"Forecast no longer collapses to ₹0: expected return and volatility are kept within realistic limits (return −20% to 40%, volatility up to 60% a year)", "If your holdings produce figures outside those limits, the forecast card shows a warning with the raw numbers, since a holding may have a wrong price or rate"}),
             new Entry("9.1.7", "26 Nov 2026", new String[]{"The strip under the floating menu now matches the page in light and dark themes; Android was painting its own white or black bar behind the phone's buttons", "Content now fades out softly just above the menu, which floats over the page background like a card"}),
             new Entry("9.1.6", "26 Nov 2026", new String[]{"Pressing back on the Dashboard now asks \"Close Portfolio?\" with Exit and Cancel, so the app isn't closed by accident (back on other tabs and pages still goes back as before)"}),
             new Entry("9.1.5", "26 Nov 2026", new String[]{"Swiping between pages no longer shows page content under the floating menu or the status bar: the background strips now follow both pages frame by frame as they slide", "Forecast: a holding with a missing or zero price in its history could break the whole forecast (the middle line fell to zero and the range bands vanished); such prices are now skipped and the forecast falls back to safe defaults"}),

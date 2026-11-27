@@ -229,8 +229,11 @@ public final class Analytics {
      */
     public static Forecast simulate(double start, double monthly, double stepUp, double mu, double sigma, int paths, long seed) {
         Forecast f = new Forecast(start, monthly, stepUp, mu, sigma, paths);
-        if (Double.isNaN(sigma) || Double.isInfinite(sigma) || sigma < 0) sigma = 15;
-        if (Double.isNaN(mu) || Double.isInfinite(mu) || mu <= -99) mu = 0;
+        // keep the inputs realistic, so one bad price or rate can never collapse the forecast to zero
+        if (Double.isNaN(sigma) || Double.isInfinite(sigma)) sigma = 15;
+        if (Double.isNaN(mu) || Double.isInfinite(mu)) mu = 0;
+        sigma = Math.max(0, Math.min(60, sigma));
+        mu = Math.max(-20, Math.min(40, mu));
         double s = sigma / 100, m = Math.log(1 + mu / 100);
         double drift = (m - s * s / 2) / 12, vol = s / Math.sqrt(12);
         Random rnd = new Random(seed);

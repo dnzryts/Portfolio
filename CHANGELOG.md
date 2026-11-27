@@ -4,6 +4,10 @@ All notable changes to Portfolio (Android) and Portfolio for Galaxy Watch.
 Newest first. The app shows this list under More › About & what's new; it's built from
 this file by `Portfolio/tools/changelog.py`, so edit here and re-run the script.
 
+## 9.1.8 — 27 Nov 2026
+- Forecast no longer collapses to ₹0: expected return and volatility are kept within realistic limits (return −20% to 40%, volatility up to 60% a year)
+- If your holdings produce figures outside those limits, the forecast card shows a warning with the raw numbers, since a holding may have a wrong price or rate
+
 ## 9.1.7 — 26 Nov 2026
 - The strip under the floating menu now matches the page in light and dark themes; Android was painting its own white or black bar behind the phone's buttons
 - Content now fades out softly just above the menu, which floats over the page background like a card
